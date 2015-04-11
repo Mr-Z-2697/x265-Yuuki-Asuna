@@ -657,6 +657,15 @@ ret:
                     m_cliopt.bDither = false;
             }
 
+            if (m_cliopt.bProgress && m_param->bStylish)
+            {
+                if (m_cliopt.framesToBeEncoded)
+                    fprintf(stderr, " %6s   %13s  %5s  %6s  %9s  %9s  %7s  %10s\n",
+                        "", "frames   ", "fps ", "kb/s ", "elapsed", "remain ", "size", "est.size");
+                else
+                    fprintf(stderr, "%6s  %5s  %6s  %9s  %7s\n", "frames", "fps ", "kb/s ", "elapsed", "size");
+            }
+
             // main encoder loop
             while (pic_in[0] && !b_ctrl_c)
             {
@@ -889,7 +898,16 @@ ret:
 
             /* clear progress report */
             if (m_cliopt.bProgress)
-                fprintf(stderr, "%*s\r", 80, " ");
+            {
+                if (!m_param->bStylish)
+                    fprintf(stderr, "%*s\r", 100, " ");
+                else if (outFrameCount)
+                {
+                    m_cliopt.prevUpdateTime = 0;
+                    m_cliopt.printStatus(outFrameCount);
+                    fprintf(stderr, "\n");
+                }
+            }
 
         fail:
 
