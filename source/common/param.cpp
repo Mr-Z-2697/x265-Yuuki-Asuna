@@ -2338,7 +2338,7 @@ char *x265_param2string(x265_param* p, int padx, int pady)
     if (p->rc.rateControlMode == X265_RC_ABR || p->rc.rateControlMode == X265_RC_CRF)
     {
         if (p->rc.rateControlMode == X265_RC_CRF)
-            s += snprintf(s, bufSize - (s - buf), " crf=%.1f", p->rc.rfConstant);
+            s += snprintf(s, bufSize - (s - buf), " crf=%.4f", p->rc.rfConstant);
         else
             s += snprintf(s, bufSize - (s - buf), " bitrate=%d", p->rc.bitrate);
         s += snprintf(s, bufSize - (s - buf), " qcomp=%.2f qpstep=%d", p->rc.qCompress, p->rc.qpStep);
