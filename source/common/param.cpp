@@ -151,6 +151,8 @@ void x265_param_default(x265_param* param)
     param->frameNumThreads = 0;
 
     param->logLevel = X265_LOG_INFO;
+    param->logfn = NULL;
+    param->logfLevel = X265_LOG_INFO;
     param->csvLogLevel = 0;
     param->csvfn[0] = 0;
     param->rc.lambdaFileName[0] = 0;
@@ -1329,6 +1331,16 @@ int x265_param_parse(x265_param* p, const char* name, const char* value)
     {
         if (0) ;
         OPT("opts") p->opts = atoi(value);
+        OPT("log-file") snprintf(p->logfn, X265_MAX_STRING_SIZE, "%s", value);
+        OPT("log-file-level")
+        {
+            p->logfLevel = atoi(value);
+            if (bError)
+            {
+                bError = false;
+                p->logfLevel = parseName(value, logLevelNames, bError) - 1;
+            }
+        }
         OPT("csv") snprintf(p->csvfn, X265_MAX_STRING_SIZE, "%s", value);
         OPT("csv-log-level") p->csvLogLevel = atoi(value);
         OPT("qpmin") p->rc.qpMin = atoi(value);
@@ -3078,6 +3090,8 @@ void x265_copy_params(x265_param* dst, x265_param* src)
 
     if (strlen(src->videoSignalTypePreset)) snprintf(dst->videoSignalTypePreset, X265_MAX_STRING_SIZE, "%s", src->videoSignalTypePreset);
     else dst->videoSignalTypePreset[0] = 0;
+    dst->logfn = src->logfn;
+    dst->logfLevel = src->logfLevel;
     dst->opts = src->opts;
 
 #ifdef SVT_HEVC
