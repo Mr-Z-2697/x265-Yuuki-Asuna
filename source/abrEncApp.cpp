@@ -623,7 +623,10 @@ ret:
                     goto fail;
                 }
                 else
+                {
+                    m_cliopt.output->setPS(m_encoder);
                     m_cliopt.totalbytes += m_cliopt.output->writeHeaders(p_nal, nal);
+                }
             }
 
             for (int view = 0; view < m_param->numViews; view++)
