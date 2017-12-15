@@ -467,6 +467,14 @@ namespace X265_NS {
         if (output)
             output->release();
         output = NULL;
+        for (auto &&i : filters)
+        {
+            if (!i)
+                continue;
+            i->release();
+            delete(i);
+            i = NULL;
+        }
     }
 
     void CLIOptions::printStatus(uint32_t frameNum)
@@ -834,6 +842,7 @@ namespace X265_NS {
                         x265_log_file(param, X265_LOG_ERROR, "%s zone file not found or error in opening zone file\n", optarg);
                 }
                 OPT("no-zonefile-rc-init") this->param->bNoResetZoneConfig = true;
+                OPT("vf") this->vf = optarg;
                 OPT("fullhelp")
                 {
                     param->logLevel = X265_LOG_FULL;
@@ -920,6 +929,13 @@ namespace X265_NS {
         {
             x265_log(param, X265_LOG_ERROR, "Input bit depth (%d) must be between 8 and 16\n", inputBitDepth);
             return true;
+        }
+
+        if (this->vf)
+        {
+            bool bFail = Filter::parseFilterString(this->vf, &this->filters);
+            if (bFail)
+                return true;
         }
 
         /* Unconditionally accept height/width/csp/bitDepth from file info */
