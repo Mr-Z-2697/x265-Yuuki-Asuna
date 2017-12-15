@@ -579,6 +579,15 @@ ret:
             x265_vmaf_data* vmafdata = m_cliopt.vmafData;
 #endif
             /* This allows muxers to modify bitstream format */
+            for (auto &&i : m_cliopt.filters)
+            {
+                i->setParam(m_param);
+                if (i->isFail())
+                {
+                    api->param_free(m_param);
+                    exit(1);
+                }
+            }
             m_cliopt.output->setParam(m_param);
             const x265_api* api = m_cliopt.api;
             ReconPlay* reconPlay = NULL;
@@ -701,6 +710,17 @@ ret:
                             x265_dither_image(pic_in[view], m_cliopt.input[view]->getWidth(), m_cliopt.input[view]->getHeight(), errorBuf, m_param->internalBitDepth);
                             pic_in[view]->bitDepth = m_param->internalBitDepth;
                         }
+                        for (auto &&i : m_cliopt.filters)
+                        {
+                            i->processFrame(*pic_in);
+                            if (i->isFail())
+                            {
+                                b_ctrl_c = 1;
+                                break;
+                            }
+                        }
+                        if (b_ctrl_c) break;
+
                         /* Overwrite PTS */
                         pic_in[view]->pts = pic_in[view]->poc;
 
