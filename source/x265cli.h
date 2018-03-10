@@ -272,6 +272,7 @@ static const struct option long_options[] =
     { "no-eos",               no_argument, NULL, 0 },
     { "info",                 no_argument, NULL, 0 },
     { "no-info",              no_argument, NULL, 0 },
+    { "opts",           required_argument, NULL, 0 },
     { "zones",          required_argument, NULL, 0 },
     { "qpfile",         required_argument, NULL, 0 },
     { "zonefile",       required_argument, NULL, 0 },

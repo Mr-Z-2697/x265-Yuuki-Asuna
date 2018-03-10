@@ -1635,6 +1635,8 @@ typedef struct x265_param
 	 * */
 	int       pictureStructure;	
 
+    int opts;
+
     struct
     {
         /* Explicit mode of rate-control, necessary for API users. It must
