@@ -156,6 +156,7 @@ void x265_param_default(x265_param* param)
     param->rc.lambdaFileName[0] = 0;
     param->bLogCuStats = 0;
     param->decodedPictureHashSEI = 0;
+    param->opts = 3;
 
     /* Quality Measurement Metrics */
     param->bEnablePsnr = 0;
@@ -1327,6 +1328,7 @@ int x265_param_parse(x265_param* p, const char* name, const char* value)
     if (bExtraParams)
     {
         if (0) ;
+        OPT("opts") p->opts = atoi(value);
         OPT("csv") snprintf(p->csvfn, X265_MAX_STRING_SIZE, "%s", value);
         OPT("csv-log-level") p->csvLogLevel = atoi(value);
         OPT("qpmin") p->rc.qpMin = atoi(value);
@@ -2251,6 +2253,9 @@ char *x265_param2string(x265_param* p, int padx, int pady)
 #define BOOL(param, cliopt) \
     s += snprintf(s, bufSize - (s - buf), " %s", (param) ? cliopt : "no-" cliopt);
 
+    if ((p->opts & 2) == 0)
+        return buf;
+
     s += snprintf(s, bufSize - (s - buf), "cpuid=%d", p->cpuid);
     s += snprintf(s, bufSize - (s - buf), " frame-threads=%d", p->frameNumThreads);
     if (strlen(p->numaPools))
@@ -2268,7 +2273,6 @@ char *x265_param2string(x265_param* p, int padx, int pady)
     s += snprintf(s, bufSize - (s - buf), " fps=%u/%u", p->fpsNum, p->fpsDenom);
     s += snprintf(s, bufSize - (s - buf), " input-res=%dx%d", p->sourceWidth - padx, p->sourceHeight - pady);
     s += snprintf(s, bufSize - (s - buf), " interlace=%d", p->interlaceMode);
-    s += snprintf(s, bufSize - (s - buf), " total-frames=%d", p->totalFrames);
     if (p->chunkStart)
         s += snprintf(s, bufSize - (s - buf), " chunk-start=%d", p->chunkStart);
     if (p->chunkEnd)
@@ -3047,6 +3051,8 @@ void x265_copy_params(x265_param* dst, x265_param* src)
 
     if (strlen(src->videoSignalTypePreset)) snprintf(dst->videoSignalTypePreset, X265_MAX_STRING_SIZE, "%s", src->videoSignalTypePreset);
     else dst->videoSignalTypePreset[0] = 0;
+    dst->opts = src->opts;
+
 #ifdef SVT_HEVC
     memcpy(dst->svtHevcParam, src->svtHevcParam, sizeof(EB_H265_ENC_CONFIGURATION));
 #endif
