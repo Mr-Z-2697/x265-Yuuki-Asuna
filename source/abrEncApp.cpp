@@ -244,6 +244,15 @@ namespace X265_NS {
             }
         }
 
+        for (auto &&i : m_cliopt.filters)
+        {
+            i->setParam(m_param);
+            if (i->isFail())
+            {
+                return -1;
+            }
+        }
+
         if (m_cliopt.zoneFile)
         {
             if (!m_cliopt.parseZoneFile())
@@ -579,15 +588,6 @@ ret:
             x265_vmaf_data* vmafdata = m_cliopt.vmafData;
 #endif
             /* This allows muxers to modify bitstream format */
-            for (auto &&i : m_cliopt.filters)
-            {
-                i->setParam(m_param);
-                if (i->isFail())
-                {
-                    api->param_free(m_param);
-                    exit(1);
-                }
-            }
             m_cliopt.output->setParam(m_param);
             const x265_api* api = m_cliopt.api;
             ReconPlay* reconPlay = NULL;
@@ -1171,6 +1171,7 @@ ret:
         m_id = id;
         for (int view = 0; view < MAX_VIEWS; view++)
             m_input[view] = parentEnc->m_input[view];
+        m_cliopt = &parentEnc->m_cliopt;
     }
 
     void Reader::threadMain()
@@ -1202,6 +1203,18 @@ ret:
                 src->format = m_parentEnc->m_param->format;
                 if (m_input[view]->readPicture(*src))
                 {
+                    for (auto &&i : m_cliopt->filters)
+                    {
+                        i->processFrame(*src);
+                        if (i->isFail())
+                        {
+                            m_threadActive = false;
+                            m_parentEnc->m_inputOver = true;
+                            m_parentEnc->m_parent->m_picWriteCnt[m_id].poke();
+                            break;
+                        }
+                    }
+
                     dest->poc = src->poc;
                     dest->pts = src->pts;
                     dest->userSEI = src->userSEI;
