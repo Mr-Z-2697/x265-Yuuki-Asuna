@@ -186,6 +186,15 @@ namespace X265_NS {
             }
         }
 
+        for (auto &&i : m_cliopt.filters)
+        {
+            i->setParam(m_param);
+            if (i->isFail())
+            {
+                return -1;
+            }
+        }
+
         if (m_cliopt.zoneFile)
         {
             if (!m_cliopt.parseZoneFile())
@@ -518,15 +527,6 @@ ret:
             x265_vmaf_data* vmafdata = m_cliopt.vmafData;
 #endif
             /* This allows muxers to modify bitstream format */
-            for (auto &&i : m_cliopt.filters)
-            {
-                i->setParam(m_param);
-                if (i->isFail())
-                {
-                    api->param_free(m_param);
-                    exit(1);
-                }
-            }
             m_cliopt.output->setParam(m_param);
             const x265_api* api = m_cliopt.api;
             ReconPlay* reconPlay = NULL;
@@ -637,17 +637,6 @@ ret:
                         x265_dither_image(pic_in, m_cliopt.input->getWidth(), m_cliopt.input->getHeight(), errorBuf, m_param->internalBitDepth);
                         pic_in->bitDepth = m_param->internalBitDepth;
                     }
-                    for (auto &&i : m_cliopt.filters)
-                    {
-                        i->processFrame(*pic_in);
-                        if (i->isFail())
-                        {
-                            b_ctrl_c = 1;
-                            break;
-                        }
-                    }
-                    if (b_ctrl_c) break;
-
                     /* Overwrite PTS */
                     pic_in->pts = pic_in->poc;
 
@@ -1089,6 +1078,7 @@ ret:
         m_parentEnc = parentEnc;
         m_id = id;
         m_input = parentEnc->m_input;
+        m_cliopt = &parentEnc->m_cliopt;
     }
 
     void Reader::threadMain()
@@ -1117,6 +1107,18 @@ ret:
             x265_picture* dest = m_parentEnc->m_parent->m_inputPicBuffer[m_id][writeIdx];
             if (m_input->readPicture(*src))
             {
+                for (auto &&i : m_cliopt->filters)
+                {
+                    i->processFrame(*src);
+                    if (i->isFail())
+                    {
+                        m_threadActive = false;
+                        m_parentEnc->m_inputOver = true;
+                        m_parentEnc->m_parent->m_picWriteCnt[m_id].poke();
+                        break;
+                    }
+                }
+
                 dest->poc = src->poc;
                 dest->pts = src->pts;
                 dest->userSEI = src->userSEI;
