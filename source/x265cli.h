@@ -67,6 +67,7 @@ static const struct option long_options[] =
     { "log-level",      required_argument, NULL, 0 },
     { "log-file",       required_argument, NULL, 0 },
     { "log-file-level", required_argument, NULL, 0 },
+    { "progress-file",  required_argument, NULL, 0 },
     { "profile",        required_argument, NULL, 'P' },
     { "level-idc",      required_argument, NULL, 0 },
     { "high-tier",            no_argument, NULL, 0 },
@@ -418,6 +419,7 @@ static const struct option long_options[] =
         uint64_t totalbytes;
         int64_t startTime;
         int64_t prevUpdateTime;
+        int64_t prevUpdateTimeFile;
         char* vf;
         vector<Filter*> filters;
 
@@ -437,6 +439,7 @@ static const struct option long_options[] =
 
         /* in microseconds */
         static const int UPDATE_INTERVAL = 250000;
+        static const int UPDATE_INTERVAL_FILE = 1000000;
         CLIOptions()
         {
             input = NULL;
@@ -456,6 +459,7 @@ static const struct option long_options[] =
             bForceY4m = false;
             startTime = x265_mdate();
             prevUpdateTime = 0;
+            prevUpdateTimeFile = 0;
             bDither = false;
             vf = NULL;
             isAbrLadderConfig = false;
