@@ -97,6 +97,7 @@ static const struct option long_options[] =
     { "seek",           required_argument, NULL, 0 },
     { "frame-skip",     required_argument, NULL, 0 },
     { "frames",         required_argument, NULL, 'f' },
+    { "reader-options", required_argument, NULL, 0 },
     { "recon",          required_argument, NULL, 'r' },
     { "recon-depth",    required_argument, NULL, 0 },
     { "no-wpp",               no_argument, NULL, 0 },
@@ -422,6 +423,7 @@ static const struct option long_options[] =
         int64_t prevUpdateTimeFile;
         char* vf;
         vector<Filter*> filters;
+        const char* readerOpts;
 
         int argCnt;
         char** argString;
@@ -472,6 +474,7 @@ static const struct option long_options[] =
             saveLevel = 0;
             numRefs = 0;
             argCnt = 0;
+            readerOpts = NULL;
         }
 
         void destroy();
