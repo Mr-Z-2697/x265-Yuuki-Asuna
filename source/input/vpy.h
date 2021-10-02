@@ -24,136 +24,113 @@
 #ifndef X265_VPY_H
 #define X265_VPY_H
 
+#ifdef X86_64
+#define VPY_64 1
+#else
+#define VPY_64 0
+#endif
+
 #include <unordered_map>
 #include <atomic>
+#include <string>
+#include <vector>
+#include <map>
+#include <array>
 
-#include <vapoursynth/VSScript.h>
-#include <vapoursynth/VSHelper.h>
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
+#include <vapoursynth/VSScript4.h>
+#include <vapoursynth/VSHelper4.h>
 
 #include "input.h"
 
-#if _WIN32
-    #include <windows.h>
-    typedef HMODULE lib_t;
-    typedef FARPROC func_t;
-    typedef LPCWSTR string_t;
-#else
-    #include <unistd.h>
-    #define Sleep(x) usleep(x)
-    #include <dlfcn.h>
-    typedef void* lib_t;
-    typedef void* func_t;
-    typedef const char* string_t;
-    #define __stdcall
+#ifdef __unix__
+#include <unistd.h>
+#include <dlfcn.h>
+#define Sleep(x) usleep(x)
+#define __stdcall
 #endif
 
-#define BUFFER_SIZE 4096
-
-#ifdef X86_64
-    #define LOAD_VS_FUNC(name, _) \
-    {\
-        vss_func.name = reinterpret_cast<decltype(vss_func.name)>((void*)vs_address("vsscript_" #name));\
-        if (!vss_func.name) goto fail;\
-    }
+#if defined(_WIN32) || defined(_WIN64)
+#define CloseEvent CloseHandle
 #else
-    #define LOAD_VS_FUNC(name, decorated_name) \
-    {\
-        vss_func.name = reinterpret_cast<decltype(vss_func.name)>((void*)vs_address(decorated_name));\
-        if (!vss_func.name) goto fail;\
-    }
+#include "event.h"
 #endif
-
-struct VSFDCallbackData {
-    const VSAPI* vsapi {nullptr};
-    std::unordered_map<int, const VSFrameRef*> reorderMap;
-    int parallelRequests {1};
-    std::atomic<int> outputFrames {0};
-    std::atomic<int> requestedFrames {0};
-    std::atomic<int> completedFrames {0};
-    int totalFrames {-1};
-    int startFrame {0};
-    std::atomic<bool> isRunning {true};
-};
 
 namespace X265_NS {
+// x265 private namespace
+
+using func_vssapi = const VSSCRIPTAPI* (VS_CC *)(int version);
+
+#if defined(_WIN32_WINNT)
+using lib_path_t = std::wstring;
+using lib_hnd_t = HMODULE;
+using func_t = FARPROC;
+#else
+using lib_path_t = std::string;
+using lib_hnd_t = void*;
+using func_t = void*;
+#endif
 
 class VPYInput : public InputFile
 {
 protected:
-
+    std::unordered_map<int, std::pair<HANDLE, const VSFrame*>> frameMap;
+    int parallelRequests {-1};
+    std::atomic<int> requestedFrames {-1};
+    std::atomic<int> completedFrames {-1};
+    int framesToRequest {-1};
+    std::atomic<bool> isRunning {false};
     int nextFrame {0};
-
+    int nodeIndex {0};
+    bool useScriptSar {false};
     bool vpyFailed {false};
-
+    char frameError[512];
     size_t frame_size {0};
     uint8_t* frame_buffer {nullptr};
-    char real_filename[BUFFER_SIZE] {0};
     InputFileInfo _info;
-
-    lib_t vss_library;
-
-    struct {
-        int (VS_CC *init)();
-        int (VS_CC *finalize)();
-        int (VS_CC *evaluateFile)(VSScript** handle, const char* scriptFilename, int flags);
-        void (VS_CC *freeScript)(VSScript* handle);
-        const char* (VS_CC *getError)(VSScript* handle);
-        VSNodeRef* (VS_CC *getOutput)(VSScript* handle, int index);
-        VSCore* (VS_CC *getCore)(VSScript* handle);
-        const VSAPI* (VS_CC *getVSApi2)(int version);
-    } vss_func;
-
+    lib_hnd_t vss_library;
+#if _WIN32
+    lib_path_t vss_library_path {L"vsscript"};
+    void vs_open() { vss_library = LoadLibraryW(vss_library_path.c_str()); }
+    void vs_close() { FreeLibrary(vss_library); vss_library = nullptr; }
+    func_t vs_address(LPCSTR func) { return GetProcAddress(vss_library, func); }
+#else
+#ifdef __MACH__
+    lib_path_t vss_library_path {"libvapoursynth-script.dylib"};
+#else
+    lib_path_t vss_library_path {"libvapoursynth-script.so"};
+#endif
+    void vs_open() { vss_library = dlopen(vss_library_path.c_str(), RTLD_GLOBAL | RTLD_LAZY | RTLD_NOW); }
+    void vs_close() { dlclose(vss_library); vss_library = nullptr; }
+    func_t vs_address(const char* func) { return dlsym(vss_library, func); }
+#endif
+    lib_path_t convertLibraryPath(std::string);
+    void parseVpyOptions(const char* _options);
+    const VSFrame* getAsyncFrame(int n);
+    func_vssapi getVSScriptAPI;
+    const VSSCRIPTAPI* vssapi = nullptr;
     const VSAPI* vsapi = nullptr;
-
+    VSCore *core = nullptr;
     VSScript* script = nullptr;
-
-    VSNodeRef* node = nullptr;
-
-    const VSFrameRef* frame0 = nullptr;
-
-    VSFDCallbackData vpyCallbackData;
-
-    void load_vs();
-
-    #if _WIN32
-        string_t libname = L"vsscript";
-        wchar_t libname_buffer[BUFFER_SIZE];
-        void vs_open() { vss_library = LoadLibraryW(libname); }
-        void vs_close() { FreeLibrary(vss_library); vss_library = nullptr; }
-        func_t vs_address(LPCSTR func) { return GetProcAddress(vss_library, func); }
-    #else
-        #ifdef __MACH__
-            string_t libname = "libvapoursynth-script.dylib";
-        #else
-            string_t libname = "libvapoursynth-script.so";
-        #endif
-        char libname_buffer[BUFFER_SIZE];
-        void vs_open() { vss_library = dlopen(libname, RTLD_GLOBAL | RTLD_LAZY | RTLD_NOW); }
-        void vs_close() { dlclose(vss_library); vss_library = nullptr; }
-        func_t vs_address(const char * func) { return dlsym(vss_library, func); }
-    #endif
+    VSNode* node = nullptr;
 
 public:
-
     VPYInput(InputFileInfo& info);
-
-    virtual ~VPYInput();
-
+    ~VPYInput() {};
+    void setAsyncFrame(int n, const VSFrame* f, const char* errorMsg);
     void release();
-
     bool isEof() const { return nextFrame >= _info.frameCount; }
-
     bool isFail() { return vpyFailed; }
-
     void startReader();
-
+    void stopReader();
     bool readPicture(x265_picture&);
-
     const char* getName() const { return "vpy"; }
-
     int getWidth() const { return _info.width; }
-
     int getHeight() const { return _info.height; }
+    int outputFrame() { return nextFrame; }
 };
 }
 
