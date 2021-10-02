@@ -24,130 +24,209 @@
 #include "vpy.h"
 #include "common.h"
 
-static void frameDoneCallback(void* userData, const VSFrameRef* f, const int n, VSNodeRef* node, const char*)
-{
-    VSFDCallbackData* vpyCallbackData = static_cast<VSFDCallbackData*>(userData);
-
-    ++vpyCallbackData->completedFrames;
-
-    if(f)
-    {
-        vpyCallbackData->reorderMap[n] = f;
-
-        size_t retries = 0;
-        while((vpyCallbackData->completedFrames - vpyCallbackData->outputFrames) > vpyCallbackData->parallelRequests) // wait until x265 asks more frames
-        {
-            Sleep(15);
-            if(retries > vpyCallbackData->parallelRequests * 1.5) // we don't want to wait for eternity 
-                break;
-            retries++;
-        }
-
-        if(vpyCallbackData->requestedFrames < vpyCallbackData->totalFrames && vpyCallbackData->isRunning) // don't ask for new frames if user cancelled execution
-        {
-            //x265::general_log(nullptr, "vpy", X265_LOG_FULL, "Callback: retries: %d, current frame: %d, requested: %d, completed: %d, output: %d  \n", retries, n, vpyCallbackData->requestedFrames.load(), vpyCallbackData->completedFrames.load(), vpyCallbackData->outputFrames.load());
-            vpyCallbackData->vsapi->getFrameAsync(vpyCallbackData->requestedFrames, node, frameDoneCallback, vpyCallbackData);
-            ++vpyCallbackData->requestedFrames;
-        }
-    }
-}
-
 using namespace X265_NS;
 
-void VPYInput::load_vs() {
-    vpyFailed = true;
-    vs_open();
-    if (!vss_library)
-    {
-        general_log(nullptr, "vpy", X265_LOG_ERROR, "failed to load VapourSynth\n");
-        return;
-    }
-    LOAD_VS_FUNC(init, "_vsscript_init@0");
-    LOAD_VS_FUNC(finalize, "_vsscript_finalize@0");
-    LOAD_VS_FUNC(evaluateFile, "_vsscript_evaluateFile@12");
-    LOAD_VS_FUNC(freeScript, "_vsscript_freeScript@4");
-    LOAD_VS_FUNC(getError, "_vsscript_getError@4");
-    LOAD_VS_FUNC(getOutput, "_vsscript_getOutput@8");
-    LOAD_VS_FUNC(getCore, "_vsscript_getCore@4");
-    LOAD_VS_FUNC(getVSApi2, "_vsscript_getVSApi2@4");
+void VS_CC frameDoneCallback(void* userData, const VSFrame* f, const int n, VSNode*, const char* errorMsg)
+{
+    reinterpret_cast<VPYInput*>(userData)->setAsyncFrame(n, f, errorMsg);
+}
 
-    if(!vss_func.init())
+void VS_CC logMessageHandler(int msgType, const char* msg, void*)
+{
+    auto vsToX265LogLevel = [msgType]()
     {
-        general_log(nullptr, "vpy", X265_LOG_ERROR, "failed to initialize VapourSynth environment\n");
-        return;
-    }
-    vpyCallbackData.vsapi = vsapi = vss_func.getVSApi2(VAPOURSYNTH_API_VERSION);
+        switch (msgType)
+        {
+            case mtDebug: return X265_LOG_DEBUG;
+            case mtInformation: return X265_LOG_INFO;
+            case mtWarning: return X265_LOG_WARNING;
+            case mtCritical: return X265_LOG_WARNING;
+            case mtFatal: return X265_LOG_ERROR;
+            default: return X265_LOG_FULL;
+        }
+    };
+    general_log(nullptr, "vpy", vsToX265LogLevel(), "%s\n", msg);
+}
 
-    vpyFailed = false;
-    return;
-fail:
-    general_log(nullptr, "vpy", X265_LOG_ERROR, "failed to load VapourSynth\n");
-    vs_close();
+void VPYInput::setAsyncFrame(int n, const VSFrame* f, const char* errorMsg)
+{
+    if (errorMsg)
+    {
+        sprintf(frameError, "%s\n", errorMsg);
+        vpyFailed = true;
+    }
+
+    if (f)
+    {
+        ++completedFrames;
+        frameMap[n].second = f;
+    }
+
+    SetEvent(frameMap[n].first);
+}
+
+const VSFrame* VPYInput::getAsyncFrame(int n)
+{
+    WaitForSingleObject(frameMap[n].first, INFINITE);
+    const VSFrame *frame = frameMap[n].second;
+    CloseEvent(frameMap[n].first);
+    frameMap.erase(n);
+
+    if (requestedFrames < framesToRequest && isRunning)
+    {
+        vsapi->getFrameAsync(requestedFrames, node, frameDoneCallback, this);
+        ++requestedFrames;
+    }
+
+    return frame;
+}
+
+lib_path_t VPYInput::convertLibraryPath(std::string path)
+{
+#if defined(_WIN32_WINNT)
+    int size_needed = MultiByteToWideChar(CP_UTF8, 0, &path[0], (int)path.size(), NULL, 0);
+    std::wstring wstrTo( size_needed, 0 );
+    MultiByteToWideChar(CP_UTF8, 0, &path[0], (int)path.size(), &wstrTo[0], size_needed);
+    return wstrTo;
+#else
+    return path;
+#endif
+}
+
+void VPYInput::parseVpyOptions(const char* _options)
+{
+    std::string options {_options}; options += ";";
+    std::string optSeparator {";"};
+    std::string valSeparator {"="};
+    std::map<std::string, int> knownOptions {
+        {std::string {"library"},        1},
+        {std::string {"output"},         2},
+        {std::string {"requests"},       3},
+        {std::string {"use-script-sar"}, 4}
+    };
+
+    auto start = 0U;
+    auto end = options.find(optSeparator);
+
+    while ((end = options.find(optSeparator, start)) != std::string::npos)
+    {
+        auto option = options.substr(start, end - start);
+        auto valuePos = option.find(valSeparator);
+        if (valuePos != std::string::npos)
+        {
+            auto key = option.substr(0U, valuePos);
+            auto value = option.substr(valuePos + 1, option.length());
+            switch (knownOptions[key])
+            {
+            case 1:
+                vss_library_path = convertLibraryPath(value);
+                general_log(nullptr, "vpy", X265_LOG_INFO, "using external VapourSynth library from %s\n", value.c_str());
+                break;
+            case 2:
+                nodeIndex = std::stoi(value);
+                break;
+            case 3:
+                parallelRequests = std::stoi(value);
+                break;
+            case 4:
+                useScriptSar = static_cast<bool>(std::stoi(value));
+                break;
+            }
+        }
+        else if (option.length() > 0)
+        {
+            general_log(nullptr, "vpy", X265_LOG_ERROR, "invalid option \"%s\" ignored\n", option.c_str());
+        }
+        start = end + optSeparator.length();
+        end = options.find(optSeparator, start);
+    }
 }
 
 VPYInput::VPYInput(InputFileInfo& info)
 {
-    const char * filename_pos = strstr(info.filename, "]://");
-    if(info.filename[0] == '[' && filename_pos) {
-        char real_libname[BUFFER_SIZE] {0};
-        strncpy(real_libname, info.filename + 1, BUFFER_SIZE - 1);
-        strncpy(real_filename, filename_pos + 4, BUFFER_SIZE - 1);
-        real_libname[filename_pos - info.filename - 1] = 0;
-        #if _WIN32
-            if(MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, real_libname, -1, libname_buffer, sizeof(libname_buffer)/sizeof(wchar_t))) {
-                libname = libname_buffer;
-            }
-            else {
-                general_log(nullptr, "vpy", X265_LOG_ERROR, "Unable to parse VapourSynth library path\n");
-                vpyFailed = true;
-                return;
-            }
-        #else
-            strncpy(libname_buffer, real_libname, BUFFER_SIZE);
-            libname = libname_buffer;
-        #endif
-        general_log(nullptr, "vpy", X265_LOG_INFO, "Using external VapourSynth library from %s\n", real_libname);
-    }
-    else {
-        strncpy(real_filename, info.filename, BUFFER_SIZE - 1);
-    }
+    if (info.readerOpts)
+        parseVpyOptions(info.readerOpts);
 
-    load_vs();
-    if(vpyFailed)
+    vs_open();
+    if (!vss_library)
+    {
+        general_log(nullptr, "vpy", X265_LOG_ERROR, "failed to load VSScript\n");
+        vpyFailed = true;
         return;
+    }
 
     if (info.skipFrames)
     {
         nextFrame = info.skipFrames;
-        vpyCallbackData.outputFrames = nextFrame;
-        vpyCallbackData.requestedFrames = nextFrame;
-        vpyCallbackData.completedFrames = nextFrame;
-        vpyCallbackData.startFrame = nextFrame;
     }
 
-    if(vss_func.evaluateFile(&script, real_filename, efSetWorkingDir))
-    {
-        general_log(nullptr, "vpy", X265_LOG_ERROR, "Can't evaluate script: %s\n", vss_func.getError(script));
-        vpyFailed = true;
-        vss_func.freeScript(script);
-        vss_func.finalize();
-        return;
-    }
+    requestedFrames = nextFrame;
+    completedFrames = nextFrame;
 
-    node = vss_func.getOutput(script, 0);
-    if(!node)
+    #if defined(__GNUC__) && __GNUC__ >= 8
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wcast-function-type"
+    #endif
+
+    getVSScriptAPI = reinterpret_cast<func_vssapi>(vs_address("getVSScriptAPI"));
+    if (!getVSScriptAPI)
     {
-        general_log(nullptr, "vpy", X265_LOG_ERROR, "`%s' has no video data\n", real_filename);
+        general_log(nullptr, "vpy", X265_LOG_ERROR, "failed to load getVSScriptAPI function. Upgrade Vapoursynth to R55 or never!\n");
         vpyFailed = true;
         return;
     }
 
-    const VSCoreInfo* core_info = vsapi->getCoreInfo(vss_func.getCore(script));
-    vpyCallbackData.parallelRequests = core_info->numThreads;
-    general_log(nullptr, "vpy", X265_LOG_INFO, "VapourSynth Core R%d\n", core_info->core);
+    #if defined(__GNUC__) && __GNUC__ >= 8
+    #pragma GCC diagnostic pop
+    #endif
+
+    vssapi = getVSScriptAPI(VSSCRIPT_API_VERSION);
+    if (!vssapi)
+    {
+        general_log(nullptr, "vpy", X265_LOG_ERROR, "failed to initialize VSScript\n");
+        vpyFailed = true;
+        return;
+    }
+
+    vsapi = vssapi->getVSAPI(VAPOURSYNTH_API_VERSION);
+    if (!vsapi)
+    {
+        general_log(nullptr, "vpy", X265_LOG_ERROR, "failed to get VapourSynth API pointer\n");
+        vpyFailed = true;
+        return;
+    }
+
+    core = vsapi->createCore(0);
+    vsapi->addLogHandler(logMessageHandler, nullptr, nullptr, core);
+    script = vssapi->createScript(core);
+    vssapi->evalSetWorkingDir(script, 1);
+    vssapi->evaluateFile(script, info.filename);
+
+    if (vssapi->getError(script))
+    {
+        general_log(nullptr, "vpy", X265_LOG_ERROR, "script evaluation failed: %s\n", vssapi->getError(script));
+        vpyFailed = true;
+        return;
+    }
+
+    if (nodeIndex > 0)
+    {
+        general_log(nullptr, "vpy", X265_LOG_INFO, "output node changed to %d\n", nodeIndex);
+    }
+
+    node = vssapi->getOutputNode(script, nodeIndex);
+    if (!node || vsapi->getNodeType(node) != mtVideo)
+    {
+        general_log(nullptr, "vpy", X265_LOG_ERROR, "`%s' at output node %d has no video data\n", info.filename, nodeIndex);
+        vpyFailed = true;
+        return;
+    }
+
+    VSCoreInfo core_info;
+    vsapi->getCoreInfo(vssapi->getCore(script), &core_info);
 
     const VSVideoInfo* vi = vsapi->getVideoInfo(node);
-    if(!isConstantFormat(vi))
+    if (!vsh::isConstantVideoFormat(vi))
     {
         general_log(nullptr, "vpy", X265_LOG_ERROR, "only constant video formats are supported\n");
         vpyFailed = true;
@@ -156,36 +235,37 @@ VPYInput::VPYInput(InputFileInfo& info)
     info.width = vi->width;
     info.height = vi->height;
 
+    if (parallelRequests == -1 || core_info.numThreads < parallelRequests)
+        parallelRequests = core_info.numThreads;
+
     char errbuf[256];
-    frame0 = vsapi->getFrame(nextFrame, node, errbuf, sizeof(errbuf));
-    if(!frame0)
+    const VSFrame* frame0 = vsapi->getFrame(nextFrame, node, errbuf, sizeof(errbuf));
+    if (!frame0)
     {
         general_log(nullptr, "vpy", X265_LOG_ERROR, "%s occurred while getting frame 0\n", errbuf);
         vpyFailed = true;
         return;
     }
 
-    vpyCallbackData.reorderMap[nextFrame] = frame0;
-    ++vpyCallbackData.completedFrames;
+    const VSMap* frameProps0 = vsapi->getFramePropertiesRO(frame0);
 
-    const VSMap* frameProps0 = vsapi->getFramePropsRO(frame0);
+    info.sarWidth  = vsapi->mapNumElements(frameProps0, "_SARNum") > 0 && useScriptSar ? vsapi->mapGetInt(frameProps0, "_SARNum", 0, nullptr) : 0;
+    info.sarHeight = vsapi->mapNumElements(frameProps0, "_SARDen") > 0 && useScriptSar ? vsapi->mapGetInt(frameProps0, "_SARDen", 0, nullptr) : 0;
 
-    info.sarWidth = vsapi->propNumElements(frameProps0, "_SARNum") > 0 ? vsapi->propGetInt(frameProps0, "_SARNum", 0, nullptr) : 0;
-    info.sarHeight =vsapi->propNumElements(frameProps0, "_SARDen") > 0 ? vsapi->propGetInt(frameProps0, "_SARDen", 0, nullptr) : 0;
-    if(vi->fpsNum == 0 && vi->fpsDen == 0) // VFR detection
+    if (vi->fpsNum == 0 && vi->fpsDen == 0) // VFR detection
     {
         int errDurNum, errDurDen;
-        int64_t rateDen = vsapi->propGetInt(frameProps0, "_DurationNum", 0, &errDurNum);
-        int64_t rateNum = vsapi->propGetInt(frameProps0, "_DurationDen", 0, &errDurDen);
+        int64_t rateDen = vsapi->mapGetInt(frameProps0, "_DurationNum", 0, &errDurNum);
+        int64_t rateNum = vsapi->mapGetInt(frameProps0, "_DurationDen", 0, &errDurDen);
 
-        if(errDurNum || errDurDen)
+        if (errDurNum || errDurDen)
         {
             general_log(nullptr, "vpy", X265_LOG_ERROR, "VFR: missing FPS values at frame 0");
             vpyFailed = true;
             return;
         }
 
-        if(!rateNum)
+        if (!rateNum)
         {
             general_log(nullptr, "vpy", X265_LOG_ERROR, "VFR: FPS numerator is zero at frame 0");
             vpyFailed = true;
@@ -203,120 +283,142 @@ VPYInput::VPYInput(InputFileInfo& info)
         info.fpsDenom = vi->fpsDen;
     }
 
-    info.frameCount = vpyCallbackData.totalFrames = vi->numFrames;
-    info.depth = vi->format->bitsPerSample;
+    info.frameCount = framesToRequest = vi->numFrames;
+    info.depth = vi->format.bitsPerSample;
 
     if (info.encodeToFrame)
     {
-        vpyCallbackData.totalFrames = info.encodeToFrame + nextFrame;
+        framesToRequest = info.encodeToFrame + nextFrame;
     }
 
-    if(vi->format->bitsPerSample >= 8 && vi->format->bitsPerSample <= 16)
+    if (vi->format.bitsPerSample >= 8 && vi->format.bitsPerSample <= 16)
     {
-        if(vi->format->colorFamily == cmYUV)
+        if (vi->format.colorFamily == cfYUV)
         {
-            if(vi->format->subSamplingW == 0 && vi->format->subSamplingH == 0) {
+            if (vi->format.subSamplingW == 0 && vi->format.subSamplingH == 0)
+            {
                 info.csp = X265_CSP_I444;
-                general_log(nullptr, "vpy", X265_LOG_INFO, "Video colorspace: YUV444 (YV24)\n");
             }
-            else if(vi->format->subSamplingW == 1 && vi->format->subSamplingH == 0) {
+            else if (vi->format.subSamplingW == 1 && vi->format.subSamplingH == 0)
+            {
                 info.csp = X265_CSP_I422;
-                general_log(nullptr, "vpy", X265_LOG_INFO, "Video colorspace: YUV422 (YV16)\n");
             }
-            else if(vi->format->subSamplingW == 1 && vi->format->subSamplingH == 1) {
+            else if (vi->format.subSamplingW == 1 && vi->format.subSamplingH == 1)
+            {
                 info.csp = X265_CSP_I420;
-                general_log(nullptr, "vpy", X265_LOG_INFO, "Video colorspace: YUV420 (YV12)\n");
             }
         }
-        else if(vi->format->colorFamily == cmGray) {
+        else if (vi->format.colorFamily == cfGray)
+        {
             info.csp = X265_CSP_I400;
-            general_log(nullptr, "vpy", X265_LOG_INFO, "Video colorspace: YUV400 (Y8)\n");
         }
     }
     else
     {
-        general_log(nullptr, "vpy", X265_LOG_ERROR, "not supported pixel type: %s\n", vi->format->name);
+        char formatNname[32];
+        vsapi->getVideoFormatName(&vi->format, formatNname);
+        general_log(nullptr, "vpy", X265_LOG_ERROR, "not supported pixel type: %s\n", formatNname);
         vpyFailed = true;
         return;
     }
-    general_log(nullptr, "vpy", X265_LOG_INFO, "Video depth: %d\n", info.depth);
-    general_log(nullptr, "vpy", X265_LOG_INFO, "Video resolution: %dx%d\n", info.width, info.height);
-    general_log(nullptr, "vpy", X265_LOG_INFO, "Video framerate: %d/%d\n", info.fpsNum, info.fpsDenom);
-    general_log(nullptr, "vpy", X265_LOG_INFO, "Video framecount: %d\n", info.frameCount);
+
+    vsapi->freeFrame(frame0);
+
+    isRunning = true;
+
     _info = info;
-}
-
-VPYInput::~VPYInput()
-{
-    if(frame0)
-        vsapi->freeFrame(frame0);
-
-    if(node)
-        vsapi->freeNode(node);
-
-    vss_func.freeScript(script);
-    vss_func.finalize();
-
-    if(vss_library)
-        vs_close();
 }
 
 void VPYInput::startReader()
 {
-    general_log(nullptr, "vpy", X265_LOG_INFO, "using %d parallel requests\n", vpyCallbackData.parallelRequests);
+    general_log(nullptr, "vpy", X265_LOG_INFO, "using %d parallel requests\n", parallelRequests);
 
-    const int requestStart = vpyCallbackData.completedFrames;
-    const int intitalRequestSize = std::min<int>(vpyCallbackData.parallelRequests, _info.frameCount - requestStart);
-    vpyCallbackData.requestedFrames = requestStart + intitalRequestSize;
+    for (int i = nextFrame; i <= framesToRequest; i++)
+    {
+        if (NULL == (frameMap[i].first = CreateEvent(NULL, false, false, NULL)))
+        {
+            general_log(nullptr, "vpy", X265_LOG_ERROR, "failed to create async event for frame %d\n", i);
+            vpyFailed = true;
+            isRunning = false;
+            return;
+        }
+    }
+
+    const int requestStart = completedFrames;
+    const int intitalRequestSize = std::min<int>(parallelRequests, _info.frameCount - requestStart);
+    requestedFrames = requestStart + intitalRequestSize;
 
     for (int n = requestStart; n < requestStart + intitalRequestSize; n++)
-        vsapi->getFrameAsync(n, node, frameDoneCallback, &vpyCallbackData);
+        vsapi->getFrameAsync(n, node, frameDoneCallback, this);
+
+}
+
+void VPYInput::stopReader()
+{
+    isRunning = false;
+
+    while (requestedFrames != completedFrames)
+    {
+        general_log(nullptr, "vpy", X265_LOG_INFO, "waiting completion of %d requested frames...    \r", requestedFrames.load() - completedFrames.load());
+        Sleep(400);
+    }
+
+    for (auto &iter : frameMap)
+    {
+        if (iter.second.second != nullptr)
+            vsapi->freeFrame(iter.second.second);
+    }
 }
 
 void VPYInput::release()
 {
-    vpyCallbackData.isRunning = false;
+    isRunning = false;
 
-    while (vpyCallbackData.requestedFrames != vpyCallbackData.completedFrames)
-    {
-        general_log(nullptr, "vpy", X265_LOG_INFO, "waiting completion of %d requested frames...    \r", vpyCallbackData.requestedFrames.load() - vpyCallbackData.completedFrames.load());
-        Sleep(100);
-    }
-
-    for (int frame = nextFrame; frame < vpyCallbackData.completedFrames; frame++)
-    {
-        const VSFrameRef* currentFrame = nullptr;
-        currentFrame = vpyCallbackData.reorderMap[frame];
-        vpyCallbackData.reorderMap.erase(frame);
-        if (currentFrame)
+    if (vpyFailed)
+        for (auto &iter : frameMap)
         {
-            vsapi->freeFrame(currentFrame);
+            if (iter.second.second != nullptr)
+                vsapi->freeFrame(iter.second.second);
         }
+
+    for (int i = 0; i < framesToRequest; i++)
+    {
+        if (frameMap.count(i)>0)
+            if(frameMap[i].first)
+                CloseEvent(frameMap[i].first);
     }
+
+    if (node)
+        vsapi->freeNode(node);
+
+    if (script)
+        vssapi->freeScript(script);
+
+    if (vss_library)
+        vs_close();
+
+    if (frame_buffer)
+        x265_free(frame_buffer);
 
     delete this;
 }
 
 bool VPYInput::readPicture(x265_picture& pic)
 {
-    const VSFrameRef* currentFrame = nullptr;
+    const VSFrame* currentFrame = nullptr;
 
-    if(nextFrame >= _info.frameCount)
+    if (nextFrame >= _info.frameCount || !isRunning)
         return false;
 
-    while (!!!vpyCallbackData.reorderMap[nextFrame])
-    {
-        Sleep(10); // wait for completition a bit
-    }
+    currentFrame = getAsyncFrame(nextFrame);
 
-    currentFrame = vpyCallbackData.reorderMap[nextFrame];
-    vpyCallbackData.reorderMap.erase(nextFrame);
-    ++vpyCallbackData.outputFrames;
-
-    if(!currentFrame)
+    if (!currentFrame)
     {
-        general_log(nullptr, "vpy", X265_LOG_ERROR, "error occurred while reading frame %d\n", nextFrame);
+        fprintf(stderr, "%*s\r", 130, " "); // make it more readable
+        general_log(nullptr, "vpy", X265_LOG_ERROR, "error occurred while reading frame %d - %s", nextFrame, frameError);
+        framesToRequest = nextFrame;
         vpyFailed = true;
+        return false;
     }
 
     pic.width = _info.width;
@@ -333,7 +435,7 @@ bool VPYInput::readPicture(x265_picture& pic)
     pic.framesize = frame_size;
 
     uint8_t* ptr = frame_buffer;
-    for(int i = 0; i < x265_cli_csps[_info.csp].planes; i++)
+    for (int i = 0; i < x265_cli_csps[_info.csp].planes; i++)
     {
         pic.stride[i] = vsapi->getStride(currentFrame, i);
         pic.planes[i] = ptr;
