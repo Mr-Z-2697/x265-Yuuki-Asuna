@@ -2743,6 +2743,8 @@ static const char * const x265_api_query_errnames[] = {
     "libx265 has an invalid bitdepth"
 };
 
+extern volatile int numErrorsDuringEncoding;
+
 #ifdef __cplusplus
 }
 #endif
