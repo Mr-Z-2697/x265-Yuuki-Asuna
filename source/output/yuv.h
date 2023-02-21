@@ -21,8 +21,8 @@
  * For more information, contact us at license @ x265.com.
  *****************************************************************************/
 
-#ifndef X265_YUV_H
-#define X265_YUV_H
+#ifndef X265_OUTPUT_YUV_H
+#define X265_OUTPUT_YUV_H
 
 #include "output.h"
 #include "common.h"
@@ -66,4 +66,4 @@ public:
 };
 }
 
-#endif // ifndef X265_YUV_H
+#endif // ifndef X265_OUTPUT_YUV_H
