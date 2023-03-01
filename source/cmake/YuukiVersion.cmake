@@ -9,7 +9,7 @@ execute_process(COMMAND
         ERROR_QUIET OUTPUT_STRIP_TRAILING_WHITESPACE
     )
 
-if("${MOD_BUILD}" STREQUAL "Yuuki")
+if(NOT "${MOD_BUILD}" STREQUAL "Asuna")
     set(X265_BASE_BRANCH "stable")
 else()
     set(X265_BASE_BRANCH "old-stable")
