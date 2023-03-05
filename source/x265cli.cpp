@@ -28,6 +28,14 @@
 #include "x265cli.h"
 #include "svt.h"
 
+#ifdef ENABLE_LSMASH
+#include <lsmash.h>
+#endif
+#ifdef ENABLE_LAVF
+#include "libavformat/version.h"
+#include "libavcodec/version.h"
+#endif
+
 #define START_CODE 0x00000001
 #define START_CODE_BYTES 4
 
@@ -39,6 +47,14 @@ namespace X265_NS {
     {
         x265_log(param, X265_LOG_INFO, "HEVC encoder version %s\n", api->version_str);
         x265_log(param, X265_LOG_INFO, "build info %s\n", api->build_info_str);
+        #ifdef ENABLE_LSMASH
+            x265_log(param, X265_LOG_INFO, "(lsmash %d.%d.%d)\n", LSMASH_VERSION_MAJOR, LSMASH_VERSION_MINOR, LSMASH_VERSION_MICRO);
+        #endif
+        #ifdef ENABLE_LAVF
+            x265_log(param, X265_LOG_INFO, "(libavformat %d.%d.%d)\n", LIBAVFORMAT_VERSION_MAJOR, LIBAVFORMAT_VERSION_MINOR, LIBAVFORMAT_VERSION_MICRO);
+            x265_log(param, X265_LOG_INFO, "(libavcodec  %d.%d.%d)\n", LIBAVCODEC_VERSION_MAJOR, LIBAVCODEC_VERSION_MINOR, LIBAVCODEC_VERSION_MICRO);
+            x265_log(param, X265_LOG_INFO, "(libavutil   %d.%d.%d)\n", LIBAVUTIL_VERSION_MAJOR, LIBAVUTIL_VERSION_MINOR, LIBAVUTIL_VERSION_MICRO);
+        #endif
     }
 
     static void showHelp(x265_param *param)
@@ -50,17 +66,28 @@ namespace X265_NS {
 #define H1 if (level >= X265_LOG_DEBUG) printf
 
         H0("\nSyntax: x265 [options] infile [-o] outfile\n");
-        H0("    infile can be YUV or Y4M\n");
+        H0("    infile can be YUV or Y4M, or frame server format\n");
         H0("    outfile is raw HEVC bitstream\n");
         H0("\nExecutable Options:\n");
         H0("-h/--help                        Show this help text and exit\n");
         H0("   --fullhelp                    Show all options and exit\n");
         H0("-V/--version                     Show version info and exit\n");
         H0("\nOutput Options:\n");
-        H0("-o/--output <filename>           Bitstream output file name\n");
+        H0("-o/--output <filename>           Output file name. Default is raw bitstream"
+#ifdef ENABLE_LSMASH
+            ", MP4 if *.mp4"
+#endif
+#ifdef ENABLE_MKV
+            ", MKV if *.mkv"
+#endif
+            "\n");
         H0("-D/--output-depth 8|10|12        Output bit depth (also internal bit depth). Default %d\n", param->internalBitDepth);
         H0("   --log-level <string>          Logging level: none error warning info debug full. Default %s\n", X265_NS::logLevelNames[param->logLevel + 1]);
+        H1("   --log-file <filename>         Save log to file\n" );
+        H1("   --log-file-level <string>     Log-file logging level: none error warning info debug full. Default %s\n", X265_NS::logLevelNames[param->logfLevel + 1]);
+        H1("   --progress-file <filename>    Save progress to file\n" );
         H0("   --no-progress                 Disable CLI progress reports\n");
+        H0("   --stylish                     Enable x264-r2204 style awesome progress indicator\n");
         H0("   --csv <filename>              Comma separated log file, if csv-log-level > 0 frame level statistics, else one line per run\n");
         H0("   --csv-log-level <integer>     Level of csv logging, if csv-log-level > 0 frame level statistics, else one line per run: 0-2\n");
         H0("\nInput Options:\n");
@@ -110,6 +137,8 @@ namespace X265_NS {
         H0("-p/--preset <string>             Trade off performance for compression efficiency. Default medium\n");
         H0("                                 ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow, or placebo\n");
         H0("-t/--tune <string>               Tune the settings for a particular type of source or situation:\n");
+        H0("             (mid bitrate anime) littlepox/lp, (slower) littlepox++/lp++,\n");
+        H0("  (high bitrate anime BD / film) vcb-s/vcbs,   (slower) vcb-s++/vcbs++,\n");
         H0("                                 psnr, ssim, grain, zerolatency, fastdecode\n");
         H0("\nQuad-Tree size and depth:\n");
         H0("-s/--ctu <64|32|16>              Maximum CU size (WxH). Default %d\n", param->maxCUSize);
@@ -354,6 +383,11 @@ namespace X265_NS {
         H0("   --[no-]aud                    Emit access unit delimiters at the start of each access unit. Default %s\n", OPT(param->bEnableAccessUnitDelimiters));
         H0("   --[no-]eob                    Emit end of bitstream nal unit at the end of the bitstream. Default %s\n", OPT(param->bEnableEndOfBitstream));
         H0("   --[no-]eos                    Emit end of sequence nal unit at the end of every coded video sequence. Default %s\n", OPT(param->bEnableEndOfSequence));
+        H1("   --opts <integer>              Set level of writing options in SEI [%d]\n"
+           "                                     - 0: no information will be written in SEI\n"
+           "                                     - 1: write x265 information\n"
+           "                                     - 2: write x265 options\n"
+           "                                     - 3: write x265 information and options\n", param->opts);
         H1("   --hash <integer>              Decoded Picture Hash SEI 0: disabled, 1: MD5, 2: CRC, 3: Checksum. Default %d\n", param->decodedPictureHashSEI);
         H0("   --atc-sei <integer>           Emit the alternative transfer characteristics SEI message where the integer is the preferred transfer characteristics. Default disabled\n");
         H0("   --pic-struct <integer>        Set the picture structure and emits it in the picture timing SEI message. Values in the range 0..12. See D.3.3 of the HEVC spec. for a detailed explanation.\n");
@@ -432,30 +466,97 @@ namespace X265_NS {
         if (output)
             output->release();
         output = NULL;
+        for (auto &&i : filters)
+        {
+            if (!i)
+                continue;
+            i->release();
+            delete(i);
+            i = NULL;
+        }
     }
 
     void CLIOptions::printStatus(uint32_t frameNum)
     {
-        char buf[200];
+        char buf[1024];
         int64_t time = x265_mdate();
+
+        int64_t elapsed = time - startTime;
+
+        if (param->pgfn && frameNum && !(prevUpdateTimeFile && time - prevUpdateTimeFile < UPDATE_INTERVAL_FILE)) {
+            // Update progress file
+            sprintf(buf,
+                "{\n \"current_frame\": %u,\n \"total_frames\": %u,\n \"current_size\": %" PRIu64 ",\n \"elapsed\": %" PRIu64 "\n}",
+                frameNum, framesToBeEncoded, totalbytes, elapsed
+            );
+            FILE* fp = fopen(param->pgfn, "wb");
+            if (fp) {
+                fputs(buf, fp);
+                fclose(fp);
+            }
+            prevUpdateTimeFile = time;
+        }
 
         if (!bProgress || !frameNum || (prevUpdateTime && time - prevUpdateTime < UPDATE_INTERVAL))
             return;
 
-        int64_t elapsed = time - startTime;
         double fps = elapsed > 0 ? frameNum * 1000000. / elapsed : 0;
         float bitrate = 0.008f * totalbytes * (param->fpsNum / param->fpsDenom) / ((float)frameNum);
+
+        int eta, eta_hh = 0, eta_mm = 0, eta_ss = 0, fps_prec, bitrate_prec, file_prec, estsz_prec = 0;
+        double percentage = 0., estsz = 0., file_num, estsz_num = 0.;
+        const char *file_unit, *estsz_unit = "";
+        fps_prec     = fps > 999.5 ? 0 : fps > 99.5 ? 1 : fps > 9.95 ? 2 : 3;
+        bitrate_prec = bitrate > 9999.5 ? 0 : bitrate > 999.5 ? 1 : 2;
+        file_prec    = totalbytes < 1048576000 ? 2 : totalbytes < 10485760000 ? 1 : 0;
+        file_num     = totalbytes < 1048576 ? (double) totalbytes / 1024. : (double) totalbytes / 1048576.;
+        file_unit    = totalbytes < 1048576 ? "K": "M";
         if (framesToBeEncoded)
         {
-            int eta = (int)(elapsed * (framesToBeEncoded - frameNum) / ((int64_t)frameNum * 1000000));
-            sprintf(buf, "x265 [%.1f%%] %d/%d frames, %.2f fps, %.2f kb/s, eta %d:%02d:%02d",
-                100. * frameNum / (param->chunkEnd ? param->chunkEnd : param->totalFrames), frameNum, (param->chunkEnd ? param->chunkEnd : param->totalFrames), fps, bitrate,
-                eta / 3600, (eta / 60) % 60, eta % 60);
+            eta        = (int)(elapsed * (framesToBeEncoded - frameNum) / ((int64_t)frameNum * 1000000));
+            percentage = 100. * frameNum / (param->chunkEnd ? param->chunkEnd : param->totalFrames);
+            eta_hh     = eta / 3600;
+            eta_mm     = ( eta / 60 ) % 60;
+            eta_ss     = eta % 60;
+            estsz      = (double) totalbytes * framesToBeEncoded / (frameNum * 1024.);
+            estsz_prec = estsz < 1024000 ? 2 : estsz < 10240000 ? 1 : 0;
+            estsz_num  = estsz < 1024 ? estsz : estsz / 1024;
+            estsz_unit = estsz < 1024 ? "K" : "M";
+            sprintf(buf, "x265 [%.1f%%] %d/%d frames, %.*f fps, %.*f kb/s, %.*f %sB, eta %d:%02d:%02d, est.size %.*f %sB",
+                    percentage, frameNum, (param->chunkEnd ? param->chunkEnd : param->totalFrames), fps_prec, fps, bitrate_prec, bitrate,
+                    file_prec, file_num, file_unit,
+                    eta_hh, eta_mm, eta_ss,
+                    estsz_prec, estsz_num, estsz_unit);
         }
         else
-            sprintf(buf, "x265 %d frames: %.2f fps, %.2f kb/s", frameNum, fps, bitrate);
+            sprintf(buf, "x265 %d frames: %.*f fps, %.*f kb/s, %.*f %sB",
+                    frameNum, fps_prec, fps, bitrate_prec, bitrate,
+                    file_prec, file_num, file_unit);
 
-        fprintf(stderr, "%s  \r", buf + 5);
+        if (param->bStylish)
+        {
+            char buf_stylish[200];
+            int secs = elapsed / 1000000;
+            if (framesToBeEncoded)
+            {
+                sprintf(buf_stylish, "x265 [%5.1f%%]  %6d/%-6d  %5.*f  %6.*f  %3d:%02d:%02d  %3d:%02d:%02d  %6.*f %1sB  %6.*f %1sB",
+                        percentage, frameNum, framesToBeEncoded, fps_prec, fps, bitrate_prec, bitrate,
+                        secs/3600, (secs/60)%60, secs%60, eta_hh, eta_mm, eta_ss,
+                        file_prec, file_num, file_unit,
+                        estsz_prec, estsz_num, estsz_unit);
+            }
+            else
+            {
+                sprintf(buf_stylish, "x265 %6d  %5.*f  %6.*f  %3d:%02d:%02d  %6.*f %1sB",
+                        frameNum, fps_prec, fps, bitrate_prec, bitrate,
+                        secs/3600, (secs/60)%60, secs%60,
+                        file_prec, file_num, file_unit);
+            }
+            fprintf(stderr, "%s  \r", buf_stylish + 5);
+        }
+        else
+            fprintf(stderr, "%s       \r", buf + 5);
+
         SetConsoleTitle(buf);
         fflush(stderr); // needed in windows
         prevUpdateTime = time;
@@ -751,6 +852,7 @@ namespace X265_NS {
                     if (!this->zoneFile)
                         x265_log_file(param, X265_LOG_ERROR, "%s zone file not found or error in opening zone file\n", optarg);
                 }
+                OPT("vf") this->vf = optarg;
                 OPT("fullhelp")
                 {
                     param->logLevel = X265_LOG_FULL;
@@ -822,6 +924,7 @@ namespace X265_NS {
         info.sarWidth = param->vui.sarWidth;
         info.sarHeight = param->vui.sarHeight;
         info.skipFrames = seek;
+        info.encodeToFrame = this->framesToBeEncoded;
         info.frameCount = 0;
         getParamAspectRatio(param, info.sarWidth, info.sarHeight);
 
@@ -837,6 +940,13 @@ namespace X265_NS {
         {
             x265_log(param, X265_LOG_ERROR, "Input bit depth (%d) must be between 8 and 16\n", inputBitDepth);
             return true;
+        }
+
+        if (this->vf)
+        {
+            bool bFail = Filter::parseFilterString(this->vf, &this->filters);
+            if (bFail)
+                return true;
         }
 
         /* Unconditionally accept height/width/csp/bitDepth from file info */
@@ -886,7 +996,7 @@ namespace X265_NS {
         if (api->param_apply_profile(param, profile))
             return true;
 
-        if (param->logLevel >= X265_LOG_INFO)
+        if (param->logLevel >= X265_LOG_INFO || param->logfLevel >= X265_LOG_INFO)
         {
             char buf[128];
             int p = sprintf(buf, "%dx%d fps %d/%d %sp%d", param->sourceWidth, param->sourceHeight,
@@ -906,6 +1016,10 @@ namespace X265_NS {
         }
 
         this->input->startReader();
+
+        if (!preset) preset = "medium";
+        if (!tune) tune = "none";
+        x265_log(param, X265_LOG_INFO, "Using preset %s & tune %s\n", preset, tune);
 
         if (reconfn)
         {

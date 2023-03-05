@@ -1126,6 +1126,15 @@ typedef struct x265_param
      * X265_LOG_FULL, default is X265_LOG_INFO */
     int       logLevel;
 
+    /* filename of general log */
+    char*     logfn;
+
+    /* level of general log */
+    int       logfLevel;
+
+    /* filename of progress */
+    char*     pgfn;
+
     /* Level of csv logging. 0 is summary, 1 is frame level logging,
      * 2 is frame level logging with performance statistics */
     int       csvLogLevel;
@@ -1626,6 +1635,10 @@ typedef struct x265_param
 	 * of the HEVC spec. for a detailed explanation
 	 * */
 	int       pictureStructure;	
+
+    int opts;
+
+    bool bStylish;
 
     struct
     {
@@ -2338,7 +2351,7 @@ static const char * const x265_preset_names[] = { "ultrafast", "superfast", "ver
  *      100 times faster than placebo!
  *
  *      Currently available tunings are: */
-static const char * const x265_tune_names[] = { "psnr", "ssim", "grain", "zerolatency", "fastdecode", "animation", 0 };
+static const char * const x265_tune_names[] = { "psnr", "ssim", "grain", "zerolatency", "fastdecode", "animation", "littlepox", "vcb-s", 0 };
 
 /*      returns 0 on success, negative on failure (e.g. invalid preset/tune name). */
 int x265_param_default_preset(x265_param *, const char *preset, const char *tune);
@@ -2654,6 +2667,8 @@ static const char * const x265_api_query_errnames[] = {
     "unable to bind x265_api_query from libx265",
     "libx265 has an invalid bitdepth"
 };
+
+extern volatile int numErrorsDuringEncoding;
 
 #ifdef __cplusplus
 }

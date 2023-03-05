@@ -186,16 +186,15 @@ namespace X265_NS {
             }
         }
 
-        if (m_cliopt.zoneFile)
+        for (auto &&i : m_cliopt.filters)
         {
-            if (!m_cliopt.parseZoneFile())
+            i->setParam(m_param);
+            if (i->isFail())
             {
-                x265_log(NULL, X265_LOG_ERROR, "Unable to parse zonefile in %s\n");
-                fclose(m_cliopt.zoneFile);
-                m_cliopt.zoneFile = NULL;
+                return -1;
             }
         }
-
+        m_cliopt.output->setParam(m_param);
         /* note: we could try to acquire a different libx265 API here based on
         * the profile found during option parsing, but it must be done before
         * opening an encoder */
@@ -517,13 +516,22 @@ ret:
 #if ENABLE_LIBVMAF
             x265_vmaf_data* vmafdata = m_cliopt.vmafData;
 #endif
-            /* This allows muxers to modify bitstream format */
-            m_cliopt.output->setParam(m_param);
             const x265_api* api = m_cliopt.api;
+            /* This allows muxers to modify bitstream format */
             ReconPlay* reconPlay = NULL;
             if (m_cliopt.reconPlayCmd)
                 reconPlay = new ReconPlay(m_cliopt.reconPlayCmd, *m_param);
             char* profileName = m_cliopt.encName ? m_cliopt.encName : (char *)"x265";
+
+            if (m_cliopt.zoneFile)
+            {
+                if (!m_cliopt.parseZoneFile())
+                {
+                    x265_log(NULL, X265_LOG_ERROR, "Unable to parse zonefile in %s\n", profileName);
+                    fclose(m_cliopt.zoneFile);
+                    m_cliopt.zoneFile = NULL;
+                }
+            }
 
             if (signal(SIGINT, sigint_handler) == SIG_ERR)
                 x265_log(m_param, X265_LOG_ERROR, "Unable to register CTRL+C handler: %s in %s\n",
@@ -556,7 +564,10 @@ ret:
                     goto fail;
                 }
                 else
+                {
+                    m_cliopt.output->setPS(m_encoder);
                     m_cliopt.totalbytes += m_cliopt.output->writeHeaders(p_nal, nal);
+                }
             }
 
             if (m_param->bField && m_param->interlaceMode)
@@ -585,6 +596,15 @@ ret:
                     memset(errorBuf, 0, (m_param->sourceWidth + 1) * sizeof(int16_t));
                 else
                     m_cliopt.bDither = false;
+            }
+
+            if (m_cliopt.bProgress && m_param->bStylish)
+            {
+                if (m_cliopt.framesToBeEncoded)
+                    fprintf(stderr, " %6s   %13s  %5s  %6s  %9s  %9s  %7s  %10s\n",
+                        "", "frames   ", "fps ", "kb/s ", "elapsed", "remain ", "size", "est.size");
+                else
+                    fprintf(stderr, "%6s  %5s  %6s  %9s  %7s\n", "frames", "fps ", "kb/s ", "elapsed", "size");
             }
 
             // main encoder loop
@@ -616,6 +636,7 @@ ret:
                         x265_dither_image(pic_in, m_cliopt.input->getWidth(), m_cliopt.input->getHeight(), errorBuf, m_param->internalBitDepth);
                         pic_in->bitDepth = m_param->internalBitDepth;
                     }
+
                     /* Overwrite PTS */
                     pic_in->pts = pic_in->poc;
 
@@ -808,7 +829,18 @@ ret:
 
             /* clear progress report */
             if (m_cliopt.bProgress)
-                fprintf(stderr, "%*s\r", 80, " ");
+            {
+                if (outFrameCount)
+                {
+                    m_cliopt.prevUpdateTime = 0;
+                    m_cliopt.prevUpdateTimeFile = 0;
+                    m_cliopt.printStatus(outFrameCount);
+                }
+                if (m_param->bStylish)
+                    fprintf(stderr, "\n");
+                else
+                    fprintf(stderr, "%*s\r", 100, " ");
+            }
 
         fail:
 
@@ -837,8 +869,10 @@ ret:
             m_cliopt.output->closeFile(largest_pts, second_largest_pts);
 
             if (b_ctrl_c)
+            {
                 general_log(m_param, NULL, X265_LOG_INFO, "aborted at input frame %d, output frame %d in %s\n",
                     m_cliopt.seek + inFrameCount, stats.encodedPictureCount, profileName);
+            }
 
             api->param_free(m_param);
 
@@ -1048,6 +1082,7 @@ ret:
         m_parentEnc = parentEnc;
         m_id = id;
         m_input = parentEnc->m_input;
+        m_cliopt = &parentEnc->m_cliopt;
     }
 
     void Reader::threadMain()
@@ -1074,8 +1109,20 @@ ret:
             }
 
             x265_picture* dest = m_parentEnc->m_parent->m_inputPicBuffer[m_id][writeIdx];
-            if (m_input->readPicture(*src))
+            if (m_input->readPicture(*src) && !b_ctrl_c)
             {
+                for (auto &&i : m_cliopt->filters)
+                {
+                    i->processFrame(*src);
+                    if (i->isFail())
+                    {
+                        m_threadActive = false;
+                        m_parentEnc->m_inputOver = true;
+                        m_parentEnc->m_parent->m_picWriteCnt[m_id].poke();
+                        break;
+                    }
+                }
+
                 dest->poc = src->poc;
                 dest->pts = src->pts;
                 dest->userSEI = src->userSEI;

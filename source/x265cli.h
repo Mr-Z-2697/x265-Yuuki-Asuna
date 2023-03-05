@@ -30,6 +30,7 @@
 #include "input/input.h"
 #include "output/output.h"
 #include "output/reconplay.h"
+#include "filters/filters.h"
 
 #include <getopt.h>
 
@@ -64,6 +65,9 @@ static const struct option long_options[] =
     { "no-pme",               no_argument, NULL, 0 },
     { "pme",                  no_argument, NULL, 0 },
     { "log-level",      required_argument, NULL, 0 },
+    { "log-file",       required_argument, NULL, 0 },
+    { "log-file-level", required_argument, NULL, 0 },
+    { "progress-file",  required_argument, NULL, 0 },
     { "profile",        required_argument, NULL, 'P' },
     { "level-idc",      required_argument, NULL, 0 },
     { "high-tier",            no_argument, NULL, 0 },
@@ -77,12 +81,14 @@ static const struct option long_options[] =
     { "cu-stats",             no_argument, NULL, 0 },
     { "y4m",                  no_argument, NULL, 0 },
     { "no-progress",          no_argument, NULL, 0 },
+    { "stylish",              no_argument, NULL, 0 },
     { "output",         required_argument, NULL, 'o' },
     { "output-depth",   required_argument, NULL, 'D' },
     { "input",          required_argument, NULL, 0 },
     { "input-depth",    required_argument, NULL, 0 },
     { "input-res",      required_argument, NULL, 0 },
     { "input-csp",      required_argument, NULL, 0 },
+    { "vf",             required_argument, NULL, 0 },
     { "interlace",      required_argument, NULL, 0 },
     { "no-interlace",         no_argument, NULL, 0 },
     { "field",                no_argument, NULL, 0 },
@@ -271,6 +277,7 @@ static const struct option long_options[] =
     { "no-eos",               no_argument, NULL, 0 },
     { "info",                 no_argument, NULL, 0 },
     { "no-info",              no_argument, NULL, 0 },
+    { "opts",           required_argument, NULL, 0 },
     { "zones",          required_argument, NULL, 0 },
     { "qpfile",         required_argument, NULL, 0 },
     { "zonefile",       required_argument, NULL, 0 },
@@ -410,6 +417,9 @@ static const struct option long_options[] =
         uint64_t totalbytes;
         int64_t startTime;
         int64_t prevUpdateTime;
+        int64_t prevUpdateTimeFile;
+        char* vf;
+        vector<Filter*> filters;
 
         int argCnt;
         char** argString;
@@ -427,6 +437,7 @@ static const struct option long_options[] =
 
         /* in microseconds */
         static const int UPDATE_INTERVAL = 250000;
+        static const int UPDATE_INTERVAL_FILE = 1000000;
         CLIOptions()
         {
             input = NULL;
@@ -446,7 +457,9 @@ static const struct option long_options[] =
             bForceY4m = false;
             startTime = x265_mdate();
             prevUpdateTime = 0;
+            prevUpdateTimeFile = 0;
             bDither = false;
+            vf = NULL;
             isAbrLadderConfig = false;
             enableScaler = false;
             encName = NULL;
