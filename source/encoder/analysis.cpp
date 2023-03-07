@@ -2543,10 +2543,7 @@ void Analysis::recodeCU(const CUData& parentCTU, const CUGeom& cuGeom, int32_t q
                 }
                 motionCompensation(mode.cu, pu, mode.predYuv, true, (m_csp != X265_CSP_I400 && m_frame->m_fencPic->m_picCsp != X265_CSP_I400));
             }
-            if (!m_param->interRefine && !m_param->bDynamicRefine && parentCTU.isSkipped(cuGeom.absPartIdx))
-                encodeResAndCalcRdSkipCU(mode);
-            else
-                encodeResAndCalcRdInterCU(mode, cuGeom);
+            encodeResAndCalcRdInterCU(mode, cuGeom);
 
             /* checkMerge2Nx2N function performs checkDQP after encoding residual, do the same */
             bool mergeInter2Nx2N = size == SIZE_2Nx2N && mode.cu.m_mergeFlag[0];
