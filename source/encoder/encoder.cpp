@@ -2728,6 +2728,8 @@ void Encoder::printSummary()
             (float)100.0 * (m_rateControl->m_numEntries - m_rpsInSpsCount) / m_rateControl->m_numEntries);
     }
 
+    if (m_param->totalFrames && (uint32_t)m_param->totalFrames > m_analyzeAll.m_numPics)
+        x265_log(m_param, X265_LOG_ERROR, "not all %d frames encoded.\n", m_param->totalFrames);
     if (m_analyzeAll.m_numPics)
     {
         int p = 0;
@@ -3285,10 +3287,17 @@ void Encoder::getStreamHeaders(NALList& list, Entropy& sbacCoder, Bitstream& bs)
                 strlen(PFX(build_info_str)) + 200);
             if (buffer)
             {
-                sprintf(buffer, "x265 (build %d) - %s:%s - H.265/HEVC codec - "
-                    "Copyright 2013-2018 (c) Multicoreware, Inc - "
-                    "http://x265.org - options: %s",
-                    X265_BUILD, PFX(version_str), PFX(build_info_str), opts);
+                if ((m_param->opts & 1) == 0)
+                    sprintf(buffer, "x265 - - H.265/HEVC codec - "
+                        "Copyright 2013-2018 (c) Multicoreware, Inc - "
+                        "http://x265.org - options: %s",
+                        opts);
+
+                else
+                    sprintf(buffer, "x265 (build %d) - %s:%s - H.265/HEVC codec - "
+                        "Copyright 2013-2018 (c) Multicoreware, Inc - "
+                        "http://x265.org - options: %s",
+                        X265_BUILD, PFX(version_str), PFX(build_info_str), opts);
 
                 SEIuserDataUnregistered idsei;
                 idsei.m_userData = (uint8_t*)buffer;
@@ -4329,7 +4338,7 @@ void Encoder::configure(x265_param *p)
 
     if (m_param->toneMapFile || p->bHDR10Opt || p->bEmitHDR10SEI)
     {
-        if (!p->bRepeatHeaders)
+        if (!p->bRepeatHeaders && p->bAnnexB)
         {
             p->bRepeatHeaders = 1;
             x265_log(p, X265_LOG_WARNING, "Turning on repeat-headers for HDR compatibility\n");

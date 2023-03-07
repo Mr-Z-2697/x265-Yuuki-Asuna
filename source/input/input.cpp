@@ -24,6 +24,15 @@
 #include "input.h"
 #include "yuv.h"
 #include "y4m.h"
+#ifdef ENABLE_AVISYNTH
+    #include "avs.h"
+#endif
+#ifdef ENABLE_LAVF
+    #include "lavf.h"
+#endif
+#ifdef ENABLE_VPYSYNTH
+    #include "vpy.h"
+#endif
 
 using namespace X265_NS;
 
@@ -33,6 +42,34 @@ InputFile* InputFile::open(InputFileInfo& info, bool bForceY4m)
 
     if (bForceY4m || (s && !strcmp(s, ".y4m")))
         return new Y4MInput(info);
-    else
-        return new YUVInput(info);
+
+#ifdef ENABLE_AVISYNTH
+    if (s && !strcmp(s, ".avs"))
+        return new AVSInput(info);
+#endif
+
+#ifdef ENABLE_VPYSYNTH
+    if (s && !strcmp(s, ".vpy"))
+        return new VPYInput(info);
+#endif
+
+#ifdef ENABLE_LAVF
+    if (s &&
+        ( !strcmp(s, ".mp4")
+        ||!strcmp(s, ".mkv")
+        ||!strcmp(s, ".mpg")
+        ||!strcmp(s, ".m1v")
+        ||!strcmp(s, ".m2v")
+        ||!strcmp(s, ".mpeg")
+        ||!strcmp(s, ".m4v")
+        ||!strcmp(s, ".m2ts")
+        ||!strcmp(s, ".ts")
+        ||!strcmp(s, ".avs")
+        ||!strcmp(s, ".avi")
+        ||!strcmp(s, ".ogv")
+        ||!strcmp(s, ".wmv")
+        ))
+        return new LavfInput(info);
+#endif
+    return new YUVInput(info);
 }
