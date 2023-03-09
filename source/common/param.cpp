@@ -2766,6 +2766,7 @@ void x265_copy_params(x265_param* dst, x265_param* src)
     dst->psyRd = src->psyRd;
     dst->psyRdoq = src->psyRdoq;
     dst->bEnableRdRefine = src->bEnableRdRefine;
+    dst->refineTolerance = src->refineTolerance;
     dst->analysisReuseMode = src->analysisReuseMode;
     if (src->analysisReuseFileName) dst->analysisReuseFileName=strdup(src->analysisReuseFileName);
     else dst->analysisReuseFileName = NULL;
