@@ -1598,6 +1598,8 @@ typedef struct x265_param
      * Default disabled */
     int       bEnableRdRefine;
 
+    float refineTolerance;
+
     /* If save, write per-frame analysis information into analysis buffers.
      * If load, read analysis information into analysis buffer and use this
      * analysis information to reduce the amount of work the encoder must perform.

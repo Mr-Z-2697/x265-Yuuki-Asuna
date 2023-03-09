@@ -155,6 +155,7 @@ namespace X265_NS {
         H0("   --dynamic-rd <0..4.0>         Strength of dynamic RD, 0 to disable. Default %.2f\n", param->dynamicRd);
         H0("   --[no-]ssim-rd                Enable ssim rate distortion optimization, 0 to disable. Default %s\n", OPT(param->bSsimRd));
         H0("   --[no-]rd-refine              Enable QP based RD refinement for rd levels 5 and 6. Default %s\n", OPT(param->bEnableRdRefine));
+        H0("   --refine-tolerance            Max allowed QP factor in rd-refine. Default %.1f\n", param->refineTolerance);
         H0("   --[no-]early-skip             Enable early SKIP detection. Default %s\n", OPT(param->bEnableEarlySkip));
         H0("   --rskip <Integer>             Enable recursion skip for early exit from CTU analysis during inter prediction. 1: exit using RD cost & CU homogeneity. 2: exit using CU edge density. 0: disabled. Default %d\n", param->recursionSkipMode);
         H1("   --rskip-edge-threshold        Threshold in terms of percentage (an integer of range [0,100]) for minimum edge density in CU's used to prune the recursion depth. Applicable only to rskip mode 2. Value is preset dependent. Default: %.f\n", param->edgeVarThreshold*100.0f);

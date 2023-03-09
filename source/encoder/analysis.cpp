@@ -480,7 +480,7 @@ void Analysis::qprdRefine(const CUData& parentCTU, const CUGeom& cuGeom, int32_t
             cuPrevCost = origCUCost;
 
             int modCUQP = qp + dir;
-            while (modCUQP >= m_param->rc.qpMin && modCUQP <= QP_MAX_SPEC)
+            while (modCUQP >= m_param->rc.qpMin && modCUQP <= QP_MAX_SPEC &&modCUQP <= m_param->refineTolerance*qp)
             {
                 if (m_param->bOptCUDeltaQP && modCUQP > (int32_t)parentCTU.m_meanQP)
                     break;

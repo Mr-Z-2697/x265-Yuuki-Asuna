@@ -372,6 +372,7 @@ void x265_param_default(x265_param* param)
     param->bCopyPicToFrame = 1;
     param->maxAUSizeFactor = 1;
     param->naluFile = NULL;
+    param->refineTolerance = 1.5;
 
     /* DCT Approximations */
     param->bLowPassDct = 0;
@@ -879,6 +880,7 @@ int x265_zone_param_parse(x265_param* p, const char* name, const char* value)
     OPT("splitrd-skip") p->bEnableSplitRdSkip = atobool(value);
     OPT("cu-lossless") p->bCULossless = atobool(value);
     OPT("rd-refine") p->bEnableRdRefine = atobool(value);
+    OPT("refine-tolerance") p->refineTolerance = atof(value);
     OPT("limit-tu") p->limitTU = atoi(value);
     OPT("tskip") p->bEnableTransformSkip = atobool(value);
     OPT("tskip-fast") p->bEnableTSkipFast = atobool(value);
@@ -1139,6 +1141,7 @@ int x265_param_parse(x265_param* p, const char* name, const char* value)
             p->psyRdoq = 0.0;
     }
     OPT("rd-refine") p->bEnableRdRefine = atobool(value);
+    OPT("refine-tolerance") p->refineTolerance = atof(value);
     OPT("signhide") p->bEnableSignHiding = atobool(value);
     OPT("b-intra") p->bIntraInBFrames = atobool(value);
     OPT("lft") p->bEnableLoopFilter = atobool(value); /* DEPRECATED */
@@ -2258,6 +2261,7 @@ char *x265_param2string(x265_param* p, int padx, int pady)
     s += sprintf(s, " rdpenalty=%d", p->rdPenalty);
     s += sprintf(s, " dynamic-rd=%.2f", p->dynamicRd);
     BOOL(p->bEnableRdRefine, "rd-refine");
+    s += sprintf(s, " refine-tolerance=%.2f", p->refineTolerance);
 
     s += sprintf(s, " -----");
 
