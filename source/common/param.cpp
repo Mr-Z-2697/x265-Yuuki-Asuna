@@ -582,6 +582,39 @@ int x265_param_default_preset(x265_param* param, const char* preset, const char*
             param->lookaheadSlices = 0; // disabled for best quality
             // TODO: optimized esa
         }
+        else if (!strcmp(preset,"slowxx"))
+        {
+            param->limitReferences = 3;
+            param->bEnableEarlySkip = 0;
+            param->rdoqLevel = 2;
+            param->psyRdoq = 1.0;
+            param->subpelRefine = 3;
+            param->searchMethod = X265_STAR_SEARCH;
+            param->maxNumReferences = 4;
+            param->lookaheadSlices = 4;
+            // based on preset slow
+
+            param->rc.aqMode=1;
+            param->rc.aqStrength=0.8;
+            param->maxCUSize=32;
+            param->rc.qCompress=0.7;
+            param->rc.pbFactor=1.2;
+            param->bEnableSAO=0;
+            param->bEnableRectInter=0;
+            param->bEnableStrongIntraSmoothing=0;
+            param->bIntraInBFrames=1;
+            param->bEnableWeightedBiPred=1;
+            param->cbQpOffset=-2;
+            param->crQpOffset=-2;
+            param->deblockingFilterBetaOffset=-1;
+            param->deblockingFilterTCOffset=-1;
+            param->lookaheadDepth=80;
+            param->bOpenGOP=0;
+            param->limitModes=0;
+            param->bframes=8;
+            param->rdLevel=6;
+            param->rc.rfConstant=14;
+        }
         else
             return -1;
     }
@@ -641,6 +674,58 @@ int x265_param_default_preset(x265_param* param, const char* preset, const char*
             param->rc.aqStrength = 0.4;
             param->deblockingFilterBetaOffset = 1;
             param->deblockingFilterTCOffset = 1;
+        }
+        else if (!strncmp(tune,"f",1))
+        {
+            param->searchMethod=X265_HEX_SEARCH;
+            param->subpelRefine=2;
+            if(!strncmp(tune,"ff",2))
+            {
+                param->bEnableEarlySkip=1;
+            }
+            if(!strncmp(tune,"fff",3))
+            {
+                param->bEnableEarlySkip=0;
+                param->rdLevel=4;
+            }
+            if(!strncmp(tune,"ffff",4))
+            {
+                param->bframes=4;
+            }
+            if(!strncmp(tune,"fffff",5))
+            {
+                param->bEnableFastIntra=1;
+            }
+            if(!strncmp(tune,"ffffff",6))
+            {
+                param->bIntraInBFrames=0;
+            }
+            if(!strncmp(tune,"fffffff",7))
+            {
+                param->bEnableEarlySkip=1;
+            }
+            // not really recommend to go further down
+            if(!strncmp(tune,"ffffffff",8))
+            {
+                param->recursionSkipMode=2;
+            }
+            if(!strncmp(tune,"fffffffff",9))
+            {
+                param->bFrameAdaptive=0;
+            }
+            if(!strncmp(tune,"ffffffffff",10))
+            {
+                param->rdoqLevel=0;
+                param->psyRdoq=0;
+            }
+            if(!strncmp(tune,"fffffffffff",11))
+            {
+                param->maxNumReferences=1;
+            }
+        }
+        else if (!strcmp(tune,"none"))
+        {
+            // do nothing. no why.
         }
         else if (!strcmp(tune, "vmaf"))  /*Adding vmaf for x265 + SVT-HEVC integration support*/
         {
