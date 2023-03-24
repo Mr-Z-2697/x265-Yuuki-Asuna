@@ -3,7 +3,7 @@
 find_package(Git)
 
 execute_process(COMMAND
-    ${GIT_EXECUTABLE} describe --tags --first-parent HEAD
+    ${GIT_EXECUTABLE} describe --tags HEAD
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
         OUTPUT_VARIABLE X265_HEAD_TAG
         ERROR_QUIET OUTPUT_STRIP_TRAILING_WHITESPACE
@@ -16,7 +16,7 @@ else()
 endif()
 
 execute_process(COMMAND
-    ${GIT_EXECUTABLE} describe --tags --first-parent origin/${X265_BASE_BRANCH}
+    ${GIT_EXECUTABLE} describe --tags origin/${X265_BASE_BRANCH}
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
         OUTPUT_VARIABLE X265_BASE_TAG
         ERROR_QUIET OUTPUT_STRIP_TRAILING_WHITESPACE
