@@ -704,28 +704,60 @@ int x265_param_default_preset(x265_param* param, const char* preset, const char*
             if(!strncmp(tune,"ffffff",6))
             {
                 param->bIntraInBFrames=0;
+                param->bEnableWeightedBiPred=0;
             }
             if(!strncmp(tune,"fffffff",7))
             {
-                param->bEnableEarlySkip=1;
+                param->bEnableWeightedPred=0;
             }
-            // not really recommend to go further down
             if(!strncmp(tune,"ffffffff",8))
             {
                 param->recursionSkipMode=2;
             }
+            // not really recommend to go further down
             if(!strncmp(tune,"fffffffff",9))
+            {
+                param->bEnableEarlySkip=1;
+            }
+            if(!strncmp(tune,"ffffffffff",10))
+            {
+                param->lookaheadSlices=8;
+            }
+            if(!strncmp(tune,"fffffffffff",11))
             {
                 param->bFrameAdaptive=0;
             }
-            if(!strncmp(tune,"ffffffffff",10))
+            if(!strncmp(tune,"ffffffffffff",12))
+            {
+                param->recursionSkipMode=1;
+            }
+            if(!strncmp(tune,"fffffffffffff",13))
+            {
+                param->searchMethod=X265_DIA_SEARCH;
+                param->bEnableSignHiding=0;
+                param->bEnableTemporalMvp=0;
+            }
+            if(!strncmp(tune,"ffffffffffffff",14))
+            {
+                param->rc.aqMode=X265_AQ_NONE;
+            }
+            if(!strncmp(tune,"fffffffffffffff",15))
             {
                 param->rdoqLevel=0;
                 param->psyRdoq=0;
             }
-            if(!strncmp(tune,"fffffffffff",11))
+            if(!strncmp(tune,"ffffffffffffffff",16))
             {
                 param->maxNumReferences=1;
+                param->limitReferences=0;
+            }
+            if(!strncmp(tune,"fffffffffffffffff",17))
+            {
+                param->rdLevel=2;
+            }
+            if(!strncmp(tune,"ffffffffffffffffff",18))
+            {
+                param->minCUSize=16;
             }
         }
         else if (!strcmp(tune,"none"))
