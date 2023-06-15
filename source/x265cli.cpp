@@ -139,7 +139,7 @@ namespace X265_NS {
         H0("                                 ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow, or placebo\n");
         H0("                                 or slowxx lol (xx as xx in cxx)\n");
         H0("-t/--tune <string>               Tune the settings for a particular type of source or situation:\n");
-        H0("                                 psnr, ssim, grain, zerolatency, fastdecode, f~ffffffffffffffffff(18), none\n");
+        H0("                                 psnr, ssim, grain, zerolatency, fastdecode, f~ffffffffffffffffff(18), e~eeeeeeeeeeeee(13), (sane range is e3~f7), none\n");
         H0("\nQuad-Tree size and depth:\n");
         H0("-s/--ctu <64|32|16>              Maximum CU size (WxH). Default %d\n", param->maxCUSize);
         H0("   --min-cu-size <64|32|16|8>    Minimum CU size (WxH). Default %d\n", param->minCUSize);
