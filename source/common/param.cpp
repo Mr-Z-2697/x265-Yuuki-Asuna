@@ -730,11 +730,11 @@ int x265_param_default_preset(x265_param* param, const char* preset, const char*
             {
                 param->bEnableWeightedPred=0;
             }
+            // not really recommend to go further down
             if(!strncmp(tune,"ffffffff",8))
             {
                 param->recursionSkipMode=2;
             }
-            // not really recommend to go further down
             if(!strncmp(tune,"fffffffff",9))
             {
                 param->bEnableEarlySkip=1;
@@ -778,6 +778,63 @@ int x265_param_default_preset(x265_param* param, const char* preset, const char*
             if(!strncmp(tune,"ffffffffffffffffff",18))
             {
                 param->minCUSize=16;
+            }
+        }
+        else if (!strncmp(tune,"e",1))
+        {
+            param->tuQTMaxInterDepth=3;
+            param->tuQTMaxIntraDepth=3;
+            param->limitTU=4;
+            if(!strncmp(tune,"ee",2))
+            {
+                param->maxNumMergeCand=5;
+            }
+            if(!strncmp(tune,"eee",3))
+            {
+                param->limitTU=0;
+            }
+            // you can stop here
+            if(!strncmp(tune,"eeee",4))
+            {
+                param->maxNumReferences=5;
+            }
+            if(!strncmp(tune,"eeeee",5))
+            {
+                param->limitReferences=0;
+            }
+            if(!strncmp(tune,"eeeeee",6))
+            {
+                param->bframes=16;
+            }
+            if(!strncmp(tune,"eeeeeee",7))
+            {
+                param->subpelRefine=4;
+            }
+            if(!strncmp(tune,"eeeeeeee",8))
+            {
+                param->recursionSkipMode=0;
+            }
+            if(!strncmp(tune,"eeeeeeeee",9))
+            {
+                param->lookaheadSlices=0;
+            }
+            if(!strncmp(tune,"eeeeeeeeee",10))
+            {
+                param->bAllowNonConformance=1; /* 3.5+2 had the limit 6 but now it's 8, 
+                for compatibility this param is added here rather than ref=16 down there*/
+                param->maxNumReferences=8;
+            }
+            if(!strncmp(tune,"eeeeeeeeeee",11))
+            {
+                param->subpelRefine=7;
+            }
+            if(!strncmp(tune,"eeeeeeeeeeee",12))
+            {
+                param->maxNumReferences=16;
+            }
+            if(!strncmp(tune,"eeeeeeeeeeeee",13)) // evil=true, this is by design.
+            {
+                param->frameNumThreads=1;
             }
         }
         else if (!strcmp(tune,"none"))
