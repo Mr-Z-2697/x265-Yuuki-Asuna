@@ -700,7 +700,7 @@ int x265_param_default_preset(x265_param* param, const char* preset, const char*
             param->deblockingFilterBetaOffset = 1;
             param->deblockingFilterTCOffset = 1;
         }
-        else if (!strncmp(tune,"f",1))
+        else if (!strncmp(tune,"f",1)) //get faster
         {
             param->searchMethod=X265_HEX_SEARCH;
             param->subpelRefine=2;
@@ -780,7 +780,7 @@ int x265_param_default_preset(x265_param* param, const char* preset, const char*
                 param->minCUSize=16;
             }
         }
-        else if (!strncmp(tune,"e",1))
+        else if (!strncmp(tune,"e",1)) //get slower (enhance!)
         {
             param->tuQTMaxInterDepth=3;
             param->tuQTMaxIntraDepth=3;
@@ -836,6 +836,19 @@ int x265_param_default_preset(x265_param* param, const char* preset, const char*
             {
                 param->frameNumThreads=1;
             }
+        }
+        else if (!strcmp(tune,"vq")) //vmaf quality
+        {
+            param->bEnableHME=1;
+            param->hmeSearchMethod[0]=param->hmeSearchMethod[2]=X265_STAR_SEARCH;
+            param->hmeSearchMethod[1]=X265_UMH_SEARCH;
+            param->maxCUSize=64;
+            param->rc.qgSize=64;
+            param->tuQTMaxInterDepth=2;
+            param->tuQTMaxIntraDepth=2;
+            param->bframes=3; /*Contrary to popular belief, people,
+            (too many) bframes is not good for your anime.  (at least in x265:)
+            https://i.imgur.com/7yxvMqr.jpg */
         }
         else if (!strcmp(tune,"none"))
         {
