@@ -29,6 +29,7 @@
 #include "cpu.h"
 #include "x265.h"
 #include "svt.h"
+#include <string>
 
 #if _MSC_VER
 #pragma warning(disable: 4996) // POSIX functions are just fine, thanks
@@ -837,18 +838,31 @@ int x265_param_default_preset(x265_param* param, const char* preset, const char*
                 param->frameNumThreads=1;
             }
         }
-        else if (!strcmp(tune,"vq")) //vmaf quality
+        else if (!strncmp(tune,"vq",2)) //vmaf quality
         {
-            param->bEnableHME=1;
-            param->hmeSearchMethod[0]=param->hmeSearchMethod[2]=X265_STAR_SEARCH;
-            param->hmeSearchMethod[1]=X265_UMH_SEARCH;
-            param->maxCUSize=64;
-            param->rc.qgSize=64;
-            param->tuQTMaxInterDepth=2;
-            param->tuQTMaxIntraDepth=2;
-            param->bframes=3; /*Contrary to popular belief, people,
-            (too many) bframes is not good for your anime.  (at least in x265:)
-            https://i.imgur.com/7yxvMqr.jpg */
+            std::string tune_s=tune;
+            int vq_lvl=1;
+            if (tune_s.length()>2)
+            {
+                vq_lvl=std::stoi(tune_s.substr(2));
+            }
+
+            switch (vq_lvl)
+            {
+                case 3:
+                    param->bEnableHME=1;
+                    param->hmeSearchMethod[0]=param->hmeSearchMethod[2]=X265_STAR_SEARCH;
+                    param->hmeSearchMethod[1]=X265_UMH_SEARCH;
+                case 2:
+                    param->maxCUSize=64;
+                    param->rc.qgSize=64;
+                case 1:
+                    param->tuQTMaxInterDepth=2;
+                    param->tuQTMaxIntraDepth=2;
+                    param->bframes=3; /*Contrary to popular belief, people,
+                    (too many) bframes is not good for your anime.  (at least in x265:)
+                    https://i.imgur.com/7yxvMqr.jpg */
+            }
         }
         else if (!strcmp(tune,"none"))
         {
