@@ -833,6 +833,7 @@ int x265_param_default_preset(x265_param* param, const char* preset, const char*
                     param->bEnableHME=1;
                     param->hmeSearchMethod[0]=param->hmeSearchMethod[2]=X265_STAR_SEARCH;
                     param->hmeSearchMethod[1]=X265_UMH_SEARCH;
+                    param->lookaheadSlices=0;
                 case 2:
                     param->maxCUSize=64;
                     param->rc.qgSize=64;
