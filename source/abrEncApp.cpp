@@ -931,7 +931,7 @@ ret:
                 if (m_param->bStylish)
                     fprintf(stderr, "\n");
                 else
-                    fprintf(stderr, "%*s\r", 100, " ");
+                    fprintf(stderr, "%*s\r", 110, " ");
             }
 
         fail:

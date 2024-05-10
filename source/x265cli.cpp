@@ -524,6 +524,7 @@ namespace X265_NS {
         double fps = elapsed > 0 ? frameNum * 1000000. / elapsed : 0;
         float bitrate = 0.008f * totalbytes * (param->fpsNum / param->fpsDenom) / ((float)frameNum);
 
+        int ela, ela_hh = 0, ela_mm = 0, ela_ss = 0;
         int eta, eta_hh = 0, eta_mm = 0, eta_ss = 0, fps_prec, bitrate_prec, file_prec, estsz_prec = 0;
         double percentage = 0., estsz = 0., file_num, estsz_num = 0.;
         const char *file_unit, *estsz_unit = "";
@@ -534,6 +535,10 @@ namespace X265_NS {
         file_unit    = totalbytes < 1048576 ? "K": "M";
         if (framesToBeEncoded)
         {
+            ela        = (int)(elapsed / 1000000);
+            ela_hh     = ela / 3600;
+            ela_mm     = (ela / 60) % 60;
+            ela_ss     = ela % 60;
             eta        = (int)(elapsed * (framesToBeEncoded - frameNum) / ((int64_t)frameNum * 1000000));
             percentage = 100. * frameNum / (param->chunkEnd ? param->chunkEnd : param->totalFrames);
             eta_hh     = eta / 3600;
@@ -543,8 +548,9 @@ namespace X265_NS {
             estsz_prec = estsz < 1024000 ? 2 : estsz < 10240000 ? 1 : 0;
             estsz_num  = estsz < 1024 ? estsz : estsz / 1024;
             estsz_unit = estsz < 1024 ? "K" : "M";
-            sprintf(buf, "x265 [%.1f%%] %d/%d frames, %.*f fps, %.*f kb/s, %.*f %sB, eta %d:%02d:%02d, est.size %.*f %sB",
+            sprintf(buf, "x265 [%.1f%%] %d/%d frames, %.*f fps, %.*f kb/s, %d:%02d:%02d, %.*f %sB, -%d:%02d:%02d, ~%.*f %sB",
                     percentage, frameNum, (param->chunkEnd ? param->chunkEnd : param->totalFrames), fps_prec, fps, bitrate_prec, bitrate,
+                    ela_hh, ela_mm, ela_ss,
                     file_prec, file_num, file_unit,
                     eta_hh, eta_mm, eta_ss,
                     estsz_prec, estsz_num, estsz_unit);
