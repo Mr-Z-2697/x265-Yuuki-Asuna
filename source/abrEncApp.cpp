@@ -195,6 +195,9 @@ namespace X265_NS {
             }
         }
 
+        /* This allows muxers to modify bitstream format */
+        m_cliopt.output->setParam(m_param);
+
         if (m_cliopt.zoneFile)
         {
             if (!m_cliopt.parseZoneFile())
@@ -526,8 +529,6 @@ ret:
 #if ENABLE_LIBVMAF
             x265_vmaf_data* vmafdata = m_cliopt.vmafData;
 #endif
-            /* This allows muxers to modify bitstream format */
-            m_cliopt.output->setParam(m_param);
             const x265_api* api = m_cliopt.api;
             ReconPlay* reconPlay = NULL;
             if (m_cliopt.reconPlayCmd)
