@@ -105,8 +105,8 @@ int GOPOutput::openFile(const char* gop_filename)
 
 void GOPOutput::setParam(x265_param *p_param)
 {
-    p_param->bAnnexB = false;
-    p_param->bRepeatHeaders = false;
+    // p_param->bAnnexB = false;
+    // p_param->bRepeatHeaders = false;
     i_numframe = 0;
 
     FILE* opt_file = open_file_for_write(dir_prefix + filename_prefix + ".options", false);
@@ -165,11 +165,11 @@ int GOPOutput::writeFrame(const x265_nal* p_nalu, uint32_t nalcount, x265_pictur
         fprintf(gop_file, "%s\n", data_filename.c_str());
         fflush(gop_file);
     }
-    int8_t ts_len = 2 * sizeof(int64_t);
-    int8_t ts_lenx[4] = {0, 0, 0, ts_len};
-    smart_fwrite(&ts_lenx, 4, data_file);
-    smart_fwrite(&pic.pts, sizeof(int64_t), data_file);
-    smart_fwrite(&pic.dts, sizeof(int64_t), data_file);
+    // int8_t ts_len = 2 * sizeof(int64_t);
+    // int8_t ts_lenx[4] = {0, 0, 0, ts_len};
+    // smart_fwrite(&ts_lenx, 4, data_file);
+    // smart_fwrite(&pic.pts, sizeof(int64_t), data_file);
+    // smart_fwrite(&pic.dts, sizeof(int64_t), data_file);
 
     for(uint8_t i = 0; i < nalcount; i++)
         i_size += p_nalu[i].sizeBytes;
