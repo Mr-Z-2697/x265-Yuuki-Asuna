@@ -534,7 +534,7 @@ void LookaheadTLD::calcAdaptiveQuantFrame(Frame *curFrame, x265_param* param)
                         curFrame->m_fencPic->m_stride, curFrame->m_fencPic->m_picWidth, curFrame->m_fencPic->m_picHeight, SHIFT_TO_BITPLANE);
                 }
 
-                if (param->rc.aqMode == X265_AQ_AUTO_VARIANCE || param->rc.aqMode == X265_AQ_AUTO_VARIANCE_BIASED || param->rc.aqMode == X265_AQ_EDGE)
+                if (param->rc.aqMode == X265_AQ_AUTO_VARIANCE || param->rc.aqMode == X265_AQ_AUTO_VARIANCE_BIASED || param->rc.aqMode == X265_AQ_EDGE || param->rc.aqMode == X265_AQ_VARIANCE_BIASED)
                 {
                     double bit_depth_correction = 1.f / (1 << (2 * (X265_DEPTH - 8)));
                     for (int blockY = 0; blockY < maxRow; blockY += loopIncr)
@@ -571,9 +571,16 @@ void LookaheadTLD::calcAdaptiveQuantFrame(Frame *curFrame, x265_param* param)
                     }
                     avg_adj /= blockCount;
                     avg_adj_pow2 /= blockCount;
-                    strength = param->rc.aqStrength * avg_adj;
+                    if (param->rc.aqMode == X265_AQ_VARIANCE_BIASED)
+                    {
+                        strength = param->rc.aqStrength * 1.0397f;
+                    }
+                    else
+                    {
+                        strength = param->rc.aqStrength * avg_adj;
+                    }
                     avg_adj = avg_adj - 0.5f * (avg_adj_pow2 - modeTwoConst) / avg_adj;
-                    bias_strength = param->rc.aqStrength;
+                    bias_strength = param->rc.aqStrength * param->rc.aqBiasStrength;
                 }
                 else
                     strength = param->rc.aqStrength * 1.0397f;
@@ -606,6 +613,12 @@ void LookaheadTLD::calcAdaptiveQuantFrame(Frame *curFrame, x265_param* param)
                         {
                             uint32_t energy = acEnergyCu(curFrame, blockX, blockY, param->internalCsp, param->rc.qgSize);
                             qp_adj = strength * (X265_LOG2(X265_MAX(energy, 1)) - (modeOneConst + 2 * (X265_DEPTH - 8)));
+                        }
+
+                        if (param->rc.aqMode == X265_AQ_VARIANCE_BIASED)
+                        {
+                            double qp_adj_bias_calc = curFrame->m_lowres.qpCuTreeOffset[blockXY];
+                            qp_adj += bias_strength * (1.f - modeTwoConst / (qp_adj_bias_calc * qp_adj_bias_calc));
                         }
 
                         if (param->bHDR10Opt)
