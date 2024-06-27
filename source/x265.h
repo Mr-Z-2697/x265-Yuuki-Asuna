@@ -585,6 +585,7 @@ typedef enum
 #define X265_AQ_AUTO_VARIANCE        2
 #define X265_AQ_AUTO_VARIANCE_BIASED 3
 #define X265_AQ_EDGE                 4
+#define X265_AQ_EDGE_BIASED          5
 #define X265_AQ_VARIANCE_BIASED      2523
 #define X265_AQ_VARIANCE_AUTO_MIN    2524
 #define X265_AQ_VARIANCE_AUTO_MIN_BIASED                2525
