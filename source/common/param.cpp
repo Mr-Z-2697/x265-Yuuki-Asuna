@@ -2484,7 +2484,7 @@ char *x265_param2string(x265_param* p, int padx, int pady)
 
     s += snprintf(s, bufSize - (s - buf), " aq-mode=%d", p->rc.aqMode);
     s += snprintf(s, bufSize - (s - buf), " aq-strength=%.2f", p->rc.aqStrength);
-    if (p->rc.aqMode == X265_AQ_VARIANCE_BIASED || p->rc.aqMode == X265_AQ_AUTO_VARIANCE_BIASED)
+    if (p->rc.aqMode == X265_AQ_VARIANCE_AUTO_MIN_BIASED || p->rc.aqMode == X265_AQ_VARIANCE_BIASED || p->rc.aqMode == X265_AQ_EDGE_BIASED || p->rc.aqMode == X265_AQ_AUTO_VARIANCE_BIASED)
     {
         s += snprintf(s, bufSize - (s - buf), " aq-bias-strength=%.2f", p->rc.aqBiasStrength);
     }
