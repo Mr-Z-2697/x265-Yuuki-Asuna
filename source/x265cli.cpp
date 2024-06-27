@@ -304,6 +304,7 @@ namespace X265_NS {
            "                                   - 2:auto variance\n"
            "                                   - 3:auto variance with bias to dark scenes\n"
            "                                   - 4:auto variance with edge information.\n"
+           "                                   - 5:mode 4 + dark bias.\n"
            "                                   - 2523:uniform AQ (mode 1) with bias to dark scenes.\n"
            "                                   - 2524:uniform AQ (mode 1) or auto variance (mode 2) choose smaller qp (per block).\n"
            "                                   - 2525:mode 2524 with bias to dark scenes.\n"
