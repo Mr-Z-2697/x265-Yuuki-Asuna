@@ -523,6 +523,7 @@ void LookaheadTLD::calcAdaptiveQuantFrame(Frame *curFrame, x265_param* param)
                 double avg_adj_pow2 = 0, avg_adj = 0, qp_adj = 0;
                 double bias_strength = 0.f;
                 double strength = 0.f;
+                double strength_auto = 0.f;
 
                 if (param->rc.aqMode == X265_AQ_EDGE)
                     edgeFilter(curFrame, param);
@@ -534,7 +535,7 @@ void LookaheadTLD::calcAdaptiveQuantFrame(Frame *curFrame, x265_param* param)
                         curFrame->m_fencPic->m_stride, curFrame->m_fencPic->m_picWidth, curFrame->m_fencPic->m_picHeight, SHIFT_TO_BITPLANE);
                 }
 
-                if (param->rc.aqMode == X265_AQ_AUTO_VARIANCE || param->rc.aqMode == X265_AQ_AUTO_VARIANCE_BIASED || param->rc.aqMode == X265_AQ_EDGE || param->rc.aqMode == X265_AQ_VARIANCE_BIASED)
+                if (param->rc.aqMode == X265_AQ_AUTO_VARIANCE || param->rc.aqMode == X265_AQ_AUTO_VARIANCE_BIASED || param->rc.aqMode == X265_AQ_EDGE || param->rc.aqMode == X265_AQ_VARIANCE_BIASED || param->rc.aqMode == X265_AQ_VARIANCE_AUTO_MIN || param->rc.aqMode == X265_AQ_VARIANCE_AUTO_MIN_BIASED)
                 {
                     double bit_depth_correction = 1.f / (1 << (2 * (X265_DEPTH - 8)));
                     for (int blockY = 0; blockY < maxRow; blockY += loopIncr)
@@ -571,9 +572,10 @@ void LookaheadTLD::calcAdaptiveQuantFrame(Frame *curFrame, x265_param* param)
                     }
                     avg_adj /= blockCount;
                     avg_adj_pow2 /= blockCount;
-                    if (param->rc.aqMode == X265_AQ_VARIANCE_BIASED)
+                    if (param->rc.aqMode == X265_AQ_VARIANCE_BIASED || param->rc.aqMode == X265_AQ_VARIANCE_AUTO_MIN || param->rc.aqMode == X265_AQ_VARIANCE_AUTO_MIN_BIASED)
                     {
                         strength = param->rc.aqStrength * 1.0397f;
+                        strength_auto = param->rc.aqStrength * avg_adj;
                     }
                     else
                     {
@@ -618,7 +620,22 @@ void LookaheadTLD::calcAdaptiveQuantFrame(Frame *curFrame, x265_param* param)
                         if (param->rc.aqMode == X265_AQ_VARIANCE_BIASED)
                         {
                             double qp_adj_bias_calc = curFrame->m_lowres.qpCuTreeOffset[blockXY];
-                            qp_adj += bias_strength * (1.f - modeTwoConst / (qp_adj_bias_calc * qp_adj_bias_calc));
+                            qp_adj_bias_calc = bias_strength * (1.f - modeTwoConst / (qp_adj_bias_calc * qp_adj_bias_calc));
+                            qp_adj += X265_MIN(qp_adj_bias_calc,0);
+                        }
+                        else if (param->rc.aqMode == X265_AQ_VARIANCE_AUTO_MIN)
+                        {
+                            double qp_adj_bias_calc = curFrame->m_lowres.qpCuTreeOffset[blockXY];
+                            double qp_adj_auto_calc = strength_auto * (qp_adj_bias_calc - avg_adj);
+                            qp_adj = X265_MIN(qp_adj,qp_adj_auto_calc);
+                        }
+                        else if (param->rc.aqMode == X265_AQ_VARIANCE_AUTO_MIN_BIASED)
+                        {
+                            double qp_adj_bias_calc = curFrame->m_lowres.qpCuTreeOffset[blockXY];
+                            double qp_adj_auto_calc = strength_auto * (qp_adj_bias_calc - avg_adj);
+                            qp_adj = X265_MIN(qp_adj,qp_adj_auto_calc);
+                            qp_adj_bias_calc = bias_strength * (1.f - modeTwoConst / (qp_adj_bias_calc * qp_adj_bias_calc));
+                            qp_adj += X265_MIN(qp_adj_bias_calc,0);
                         }
 
                         if (param->bHDR10Opt)
