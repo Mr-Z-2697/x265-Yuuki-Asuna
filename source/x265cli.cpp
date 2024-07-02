@@ -289,10 +289,10 @@ namespace X265_NS {
             "                                    - 0 : Disabled.\n"
             "                                    - 1 : Store/Load ctu distortion to/from the file specified in analysis-save/load.\n"
             "                                Default 0 - Disabled\n");
-        H0("   --aq-mode <integer>           Mode for Adaptive Quantization - 0:none 1:uniform AQ 2523:uniform AQ with bias to dark scenes 2:auto variance 2524:uniform AQ and auto variance choose smaller qp 2525:2524 with bias to dark scenes 3:auto variance with bias to dark scenes 4:auto variance with edge information 5:4+dark bias. Default %d\n", param->rc.aqMode);
+        H0("   --aq-mode <integer>           Mode for Adaptive Quantization - 0:none 1:uniform AQ 2523:uniform AQ with bias to dark scenes 2:auto variance 2524:uniform AQ or auto variance choose smaller qp (per block) 2525:2524 with bias to dark scenes 3:auto variance with bias to dark scenes 4:auto variance with edge information 5:4+dark bias. Default %d\n", param->rc.aqMode);
         H0("   --[no-]hevc-aq                Mode for HEVC Adaptive Quantization. Default %s\n", OPT(param->rc.hevcAq));
         H0("   --aq-strength <float>         Reduces blocking and blurring in flat and textured areas (0 to 3.0). Default %.2f\n", param->rc.aqStrength);
-        H0("   --aq-bias-strength <float>    Sets dark bias strength in AQ modes that use it. This acts as a factor of the bias_strength which is the same as aq-strength. Default %.2f\n", param->rc.aqBiasStrength);
+        H0("   --aq-bias-strength <float>    Sets dark bias strength in AQ modes that use it. This acts as a factor by which the bias_strength which was the same as aq-strength is multiplied. Default %.2f\n", param->rc.aqBiasStrength);
         H0("   --qp-adaptation-range <float> Delta QP range by QP adaptation based on a psycho-visual model (1.0 to 6.0). Default %.2f\n", param->rc.qpAdaptationRange);
         H0("   --[no-]aq-motion              Block level QP adaptation based on the relative motion between the block and the frame. Default %s\n", OPT(param->bAQMotion));
         H1("   --[no-]sbrc                   Enables the segment based rate control. Default %s\n", OPT(param->bEnableSBRC));
