@@ -4345,8 +4345,7 @@ void Encoder::configure(x265_param *p)
                                         "                                            transfer characteristics should be SMPTE ST.2084,\n"
                                         "                                            matrix coeffs should be BT.2020,\n"
                                         "                                            the input video should be 10 bit 4:2:0\n"
-                                        "                                            Disabling hdr10-opt.\n");
-            p->bHDR10Opt = 0;
+                                        "                                            It's better to disable hdr10-opt.\n");
         }
     }
 
