@@ -653,6 +653,7 @@ void LookaheadTLD::calcAdaptiveQuantFrame(Frame *curFrame, x265_param* param)
                         {
                             uint32_t sum = lumaSumCu(curFrame, blockX, blockY, param->rc.qgSize);
                             uint32_t lumaAvg = sum / (loopIncr * loopIncr);
+                            lumaAvg = lumaAvg * pow(2, (10 - param->internalBitDepth));
                             if (lumaAvg < 301)
                                 qp_adj += 3;
                             else if (lumaAvg >= 301 && lumaAvg < 367)
