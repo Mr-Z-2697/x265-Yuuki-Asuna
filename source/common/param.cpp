@@ -2129,11 +2129,6 @@ int x265_check_params(x265_param* param)
         if (param->dolbyProfile == 81)
             CHECK(param->masteringDisplayColorVolume[0] == 0, "Dolby Vision profile - 8.1 requires Mastering display color volume information\n");
     }
-    if (param->bField && param->interlaceMode)
-    {
-        CHECK( (param->bFrameAdaptive==0), "Adaptive B-frame decision method should be closed for field feature.\n" );
-        // to do
-    }
     CHECK(param->selectiveSAO < 0 || param->selectiveSAO > 4,
         "Invalid SAO tune level. Value must be between 0 and 4 (inclusive)");
     if (param->bEnableSceneCutAwareQp)
@@ -2600,6 +2595,8 @@ char *x265_param2string(x265_param* p, int padx, int pady)
     s += snprintf(s, bufSize - (s - buf), " fps=%u/%u", p->fpsNum, p->fpsDenom);
     s += snprintf(s, bufSize - (s - buf), " input-res=%dx%d", p->sourceWidth - padx, p->sourceHeight - pady);
     s += snprintf(s, bufSize - (s - buf), " interlace=%d", p->interlaceMode);
+    if (p->interlaceMode)
+        BOOL(p->bField, "field");
     if (p->chunkStart)
         s += snprintf(s, bufSize - (s - buf), " chunk-start=%d", p->chunkStart);
     if (p->chunkEnd)
@@ -2706,7 +2703,6 @@ char *x265_param2string(x265_param* p, int padx, int pady)
     BOOL(p->bDynamicRefine, "dynamic-refine");
     BOOL(p->bSingleSeiNal, "single-sei");
     BOOL(p->bEnableSvtHevc, "svt");
-    BOOL(p->bField, "field");
     s += snprintf(s, bufSize - (s - buf), " qp-adaptation-range=%.2f", p->rc.qpAdaptationRange);
     s += snprintf(s, bufSize - (s - buf), " scenecut-aware-qp=%d", p->bEnableSceneCutAwareQp);
     if (p->bEnableSceneCutAwareQp)
