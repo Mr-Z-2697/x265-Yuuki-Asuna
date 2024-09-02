@@ -630,8 +630,6 @@ int x265_param_default_preset(x265_param* param, const char* preset, const char*
             param->bEnableStrongIntraSmoothing=0;
             param->bIntraInBFrames=1;
             param->bEnableWeightedBiPred=1;
-            param->cbQpOffset=-2;
-            param->crQpOffset=-2;
             param->deblockingFilterBetaOffset=-1;
             param->deblockingFilterTCOffset=-1;
             param->lookaheadDepth=80;
