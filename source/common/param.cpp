@@ -2751,7 +2751,7 @@ char *x265_param2string(x265_param* p, int padx, int pady)
     s += snprintf(s, bufSize - (s - buf), " format=%d", p->format);
 #endif
 #if ENABLE_SCC_EXT
-    s += snprintf(s, bufSize - (s - buf), "scc=%d", p->bEnableSCC);
+    s += snprintf(s, bufSize - (s - buf), " scc=%d", p->bEnableSCC);
 #endif
     BOOL(p->bEnableSBRC, "sbrc");
     BOOL(p->bConfigRCFrame, "frame-rc");
