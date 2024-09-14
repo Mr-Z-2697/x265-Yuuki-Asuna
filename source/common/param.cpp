@@ -2662,7 +2662,7 @@ char *x265_param2string(x265_param* p, int padx, int pady)
     s += sprintf(s, " format=%d", p->format);
 #endif
 #if ENABLE_SCC_EXT
-    s += sprintf(s, "scc=%d", p->bEnableSCC);
+    s += sprintf(s, " scc=%d", p->bEnableSCC);
 #endif
     BOOL(p->bEnableSBRC, "sbrc");
 #undef BOOL
