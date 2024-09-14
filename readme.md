@@ -4,9 +4,9 @@
 
 ![](yande.re-211430.png)
 
-|  Branch             |[lol-Yuuki-3.6](https://github.com/Mr-Z-2697/x265-Yuuki-Asuna/tree/lol-Yuuki-3.6)       |
+|  Branch             |[lol-Yuuki-4.1-backport](https://github.com/Mr-Z-2697/x265-Yuuki-Asuna/tree/lol-Yuuki-4.1-backport)       |
 |---------------------|----------------------------------------------------------------------------------------|
-|  Base branch        | [Stable](https://github.com/Mr-Z-2697/x265-Yuuki-Asuna/tree/lol-stable-3.6) (3.6)      |
+|  Base branch        | [Release_4.1-backport](https://github.com/Mr-Z-2697/x265-Yuuki-Asuna/tree/lol-rel-4.1-backport)          |
 |                     | ![](Yuuki.jpg)                                                                         |
 
 To report a bug due to patches, create a new issue here. To report a x265 bug, please visit their repository or mailing list.
