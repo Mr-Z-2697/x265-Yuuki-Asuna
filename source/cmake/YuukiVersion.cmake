@@ -10,7 +10,7 @@ execute_process(COMMAND
     )
 
 if(NOT "${MOD_BUILD}" STREQUAL "Asuna")
-    set(X265_BASE_BRANCH "lol-stable-3.6")
+    set(X265_BASE_BRANCH "lol-rel-4.1")
 else()
     set(X265_BASE_BRANCH "old-stable")
 endif()
