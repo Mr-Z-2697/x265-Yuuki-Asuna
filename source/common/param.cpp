@@ -1546,7 +1546,7 @@ int x265_param_parse(x265_param* p, const char* name, const char* value)
                 p->logfLevel = parseName(value, logLevelNames, bError) - 1;
             }
         }
-        OPT("progress-file") p->pgfn = strdup(value);
+        OPT("progress-file") snprintf(p->pgfn, X265_MAX_STRING_SIZE, "%s", value);
         OPT("stylish") p->bStylish = atobool(value);
         OPT("csv") snprintf(p->csvfn, X265_MAX_STRING_SIZE, "%s", value);
         OPT("csv-log-level") p->csvLogLevel = atoi(value);
@@ -2587,7 +2587,7 @@ char *x265_param2string(x265_param* p, int padx, int pady)
     BOOL(p->bEnableWavefront, "wpp");
     s += snprintf(s, bufSize - (s - buf), " cpuid=%d", p->cpuid);
     s += snprintf(s, bufSize - (s - buf), " frame-threads=%d", p->frameNumThreads);
-    if (p->numaPools)
+    if (strlen(p->numaPools))
         s += snprintf(s, bufSize - (s - buf), " numa-pools=%s", p->numaPools);
     s += snprintf(s, bufSize - (s - buf), " nr-intra=%d", p->noiseReductionIntra);
     s += snprintf(s, bufSize - (s - buf), " nr-inter=%d", p->noiseReductionInter);
@@ -2616,7 +2616,7 @@ char *x265_param2string(x265_param* p, int padx, int pady)
     BOOL(p->bEnablePsnr, "psnr");
     BOOL(p->bEnableSsim, "ssim");
     s += snprintf(s, bufSize - (s - buf), " log-level=%d", p->logLevel);
-    if (p->csvfn)
+    if (strlen(p->csvfn))
         s += snprintf(s, bufSize - (s - buf), " csv csv-log-level=%d", p->csvLogLevel);
     s += snprintf(s, bufSize - (s - buf), " bitdepth=%d", p->internalBitDepth);
     s += snprintf(s, bufSize - (s - buf), " input-csp=%d", p->internalCsp);
@@ -2711,9 +2711,9 @@ char *x265_param2string(x265_param* p, int padx, int pady)
     BOOL(p->bHDR10Opt, "hdr10-opt");
     BOOL(p->bDhdr10opt, "dhdr10-opt");
     BOOL(p->bEmitIDRRecoverySEI, "idr-recovery-sei");
-    if (p->analysisSave)
+    if (strlen(p->analysisSave))
         s += snprintf(s, bufSize - (s - buf), " analysis-save");
-    if (p->analysisLoad)
+    if (strlen(p->analysisLoad))
         s += snprintf(s, bufSize - (s - buf), " analysis-load");
     s += snprintf(s, bufSize - (s - buf), " analysis-reuse-level=%d", p->analysisReuseLevel);
     s += snprintf(s, bufSize - (s - buf), " analysis-save-reuse-level=%d", p->analysisSaveReuseLevel);
