@@ -553,7 +553,7 @@ namespace X265_NS {
 
         int64_t elapsed = time - startTime;
 
-        if (param->pgfn && frameNum && !(prevUpdateTimeFile && time - prevUpdateTimeFile < UPDATE_INTERVAL_FILE)) {
+        if (strlen(param->pgfn) && frameNum && !(prevUpdateTimeFile && time - prevUpdateTimeFile < UPDATE_INTERVAL_FILE)) {
             // Update progress file
             sprintf(buf,
                 "{\n \"current_frame\": %u,\n \"total_frames\": %u,\n \"current_size\": %" PRIu64 ",\n \"elapsed\": %" PRIu64 "\n}",

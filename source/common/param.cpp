@@ -152,8 +152,9 @@ void x265_param_default(x265_param* param)
     param->frameNumThreads = 0;
 
     param->logLevel = X265_LOG_INFO;
-    param->logfn = NULL;
+    param->logfn[0] = 0;
     param->logfLevel = X265_LOG_INFO;
+    param->pgfn[0] = 0;
     param->csvLogLevel = 0;
     param->csvfn[0] = 0;
     param->rc.lambdaFileName[0] = 0;
@@ -3298,9 +3299,11 @@ void x265_copy_params(x265_param* dst, x265_param* src)
 
     if (strlen(src->videoSignalTypePreset)) snprintf(dst->videoSignalTypePreset, X265_MAX_STRING_SIZE, "%s", src->videoSignalTypePreset);
     else dst->videoSignalTypePreset[0] = 0;
-    dst->logfn = src->logfn;
+    if (strlen(src->logfn)) snprintf(dst->logfn, X265_MAX_STRING_SIZE, "%s", src->logfn);
+    else dst->logfn[0] = 0;
     dst->logfLevel = src->logfLevel;
-    dst->pgfn = src->pgfn;
+    if (strlen(src->pgfn)) snprintf(dst->pgfn, X265_MAX_STRING_SIZE, "%s", src->pgfn);
+    else dst->pgfn[0] = 0;
     dst->opts = src->opts;
 
 #ifdef SVT_HEVC

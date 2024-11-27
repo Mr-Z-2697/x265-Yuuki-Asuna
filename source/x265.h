@@ -1203,13 +1203,13 @@ typedef struct x265_param
     int       logLevel;
 
     /* filename of general log */
-    char*     logfn;
+    char     logfn[X265_MAX_STRING_SIZE];
 
     /* level of general log */
     int       logfLevel;
 
     /* filename of progress */
-    char*     pgfn;
+    char     pgfn[X265_MAX_STRING_SIZE];
 
     /* Level of csv logging. 0 is summary, 1 is frame level logging,
      * 2 is frame level logging with performance statistics */
