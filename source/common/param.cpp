@@ -2414,7 +2414,7 @@ void x265_print_params(x265_param* param)
     TOOLOPT(param->numViews > 1, "multi-view");
 #endif
 #if ENABLE_HDR10_PLUS
-    TOOLOPT(param->toneMapFile != NULL, "dhdr10-info");
+    TOOLOPT(strlen(param->toneMapFile), "dhdr10-info");
 #endif
     x265_log(param, X265_LOG_INFO, "tools:%s\n", buf);
     fflush(stderr);
