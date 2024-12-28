@@ -3588,11 +3588,8 @@ void Lookahead::cuTree(Lowres **frames, int numframes, bool bIntra)
     int bframes = 0;
 
     x265_emms();
-    double totalDuration = 0.0;
-    for (int j = 0; j <= numframes; j++)
-        totalDuration += (double)m_param->fpsDenom / m_param->fpsNum;
 
-    double averageDuration = totalDuration / (numframes + 1);
+    double averageDuration = (double)m_param->fpsDenom / m_param->fpsNum;
 
     int i = numframes;
 
