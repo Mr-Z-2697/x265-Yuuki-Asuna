@@ -3941,7 +3941,14 @@ void Encoder::configure(x265_param *p)
     if (p->bLossless)
     {
         p->rc.rateControlMode = X265_RC_CQP;
-        p->rc.qp = 4; // An oddity, QP=4 is more lossless than QP=0 and gives better lambdas
+        if (p->rc.qp == 32)
+        {
+            p->rc.qp = 4; // An oddity, QP=4 is more lossless than QP=0 and gives better lambdas
+        }
+        else if (p->rc.qp == 52)
+        {
+            p->rc.qp = 32;
+        }
         p->bEnableSsim = 0;
         p->bEnablePsnr = 0;
     }
