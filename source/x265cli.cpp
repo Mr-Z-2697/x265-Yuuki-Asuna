@@ -245,7 +245,7 @@ namespace X265_NS {
         H0("   --bitrate <integer>           Target bitrate (kbps) for ABR (implied). Default %d\n", param->rc.bitrate);
         H1("-q/--qp <integer>                QP for P slices in CQP mode (implied). --ipratio and --pbration determine other slice QPs\n");
         H0("   --crf <float>                 Quality-based VBR (0-51). Default %.1f\n", param->rc.rfConstant);
-        H1("   --[no-]lossless               Enable lossless: bypass transform, quant and loop filters globally. Default %s\n", OPT(param->bLossless));
+        H1("   --[no-]lossless               Enable lossless: bypass transform, quant and loop filters globally. Mod: qp=4 is decoupled from lossless, instead detect default qp value (32) and change it to 4, to actually use qp=32, use qp=52. Default %s\n", OPT(param->bLossless));
         H1("   --crf-max <float>             With CRF+VBV, limit RF to this value. Default %f\n", param->rc.rfConstantMax);
         H1("                                 May cause VBV underflows!\n");
         H1("   --crf-min <float>             With CRF+VBV, limit RF to this value. Default %f\n", param->rc.rfConstantMin);

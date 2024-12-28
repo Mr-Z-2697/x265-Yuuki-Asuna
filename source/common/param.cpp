@@ -1908,7 +1908,7 @@ int x265_check_params(x265_param* param)
           "minimim CU size must be 8, 16 or 32");
     CHECK(param->minCUSize > param->maxCUSize,
           "min CU size must be less than or equal to max CU size");
-    CHECK(param->rc.qp < -6 * (param->internalBitDepth - 8) || param->rc.qp > QP_MAX_SPEC,
+    CHECK(param->rc.qp < -6 * (param->internalBitDepth - 8) || param->rc.qp > (QP_MAX_SPEC + (int)param->bLossless),
           "QP exceeds supported range (-QpBDOffsety to 51)");
     CHECK(param->fpsNum == 0 || param->fpsDenom == 0,
           "Frame rate numerator and denominator must be specified");
