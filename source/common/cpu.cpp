@@ -217,7 +217,7 @@ uint32_t cpu_detect(bool benableavx512 )
         {
             if (ebx & 0x00000020)
                 cpu |= X265_CPU_AVX2;
-            if (benableavx512)
+            if (1)
             {
                 if ((xcr0 & 0xE0) == 0xE0) /* OPMASK/ZMM state */
                 {
