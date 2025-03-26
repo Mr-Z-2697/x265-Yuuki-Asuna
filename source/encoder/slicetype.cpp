@@ -1143,6 +1143,8 @@ Lookahead::Lookahead(x265_param *param, ThreadPool* pool)
             break;
         }
     }
+
+    memset(m_histogram, 0, sizeof(m_histogram));
 }
 
 #if DETAILED_CU_STATS
@@ -2276,6 +2278,7 @@ void Lookahead::slicetypeDecide()
                         list[newbFrames - 1]->m_lowres.bLastMiniGopBFrame = true;
                     list[newbFrames]->m_lowres.leadingBframes = newbFrames;
                     m_lastNonB = &list[newbFrames]->m_lowres;
+                    m_histogram[newbFrames]++;
 
                     /* insert a bref into the sequence */
                     if (m_param->bBPyramid && newbFrames)
@@ -2362,6 +2365,7 @@ void Lookahead::slicetypeDecide()
                         list[newbFrames - 1]->m_lowres.bLastMiniGopBFrame = true;
                 list[newbFrames]->m_lowres.leadingBframes = newbFrames;
                 m_lastNonB = &list[newbFrames]->m_lowres;
+                m_histogram[newbFrames]++;
 
                 /* insert a bref into the sequence */
                 if (m_param->bBPyramid && (newbFrames- listReset) > 1)
@@ -2445,6 +2449,7 @@ void Lookahead::slicetypeDecide()
             list[bframes - 1]->m_lowres.bLastMiniGopBFrame = true;
             list[bframes]->m_lowres.leadingBframes = bframes;
             m_lastNonB = &list[bframes]->m_lowres;
+            m_histogram[bframes]++;
 
             /* insert a bref into the sequence */
             if (m_param->bBPyramid && !brefs)
@@ -2557,6 +2562,7 @@ void Lookahead::slicetypeDecide()
             list[bframes - 1]->m_lowres.bLastMiniGopBFrame = true;
         list[bframes]->m_lowres.leadingBframes = bframes;
         m_lastNonB = &list[bframes]->m_lowres;
+        m_histogram[bframes]++;
 
         /* insert a bref into the sequence */
         if (m_param->bBPyramid && bframes > 1 && !brefs)
