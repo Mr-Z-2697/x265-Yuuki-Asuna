@@ -2756,6 +2756,19 @@ void Encoder::printSummary()
                 (float)100.0 * m_numChromaWPBiFrames / m_analyzeB[layer].m_numPics);
         }
 
+        int pWithB = 0;
+        for (int i = 0; i <= m_param->bframes; i++)
+            pWithB += m_lookahead->m_histogram[i];
+
+        if (pWithB)
+        {
+            int p = 0;
+            for (int i = 0; i <= m_param->bframes; i++)
+                p += snprintf(buffer + p, sizeof(buffer) - p, "%.1f%% ", 100. * m_lookahead->m_histogram[i] / pWithB);
+
+            x265_log(m_param, X265_LOG_INFO, "consecutive B-frames: %s\n", buffer);
+        }
+
         if (m_param->bLossless)
         {
             float frameSize = (float)(m_param->sourceWidth - m_sps.conformanceWindow.rightOffset) *
