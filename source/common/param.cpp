@@ -338,7 +338,7 @@ void x265_param_default(x265_param* param)
     param->rc.bEnableGrain = 0;
     param->rc.qpMin = 0;
     param->rc.qpMax = QP_MAX_MAX;
-    param->rc.bEnableConstVbv = 0;
+    param->rc.bEnableConstVbv = 1;
     param->bResetZoneConfig = 1;
     param->reconfigWindowSize = 0;
     param->decoderVbvMaxRate = 0;
