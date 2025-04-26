@@ -452,7 +452,7 @@ bool enforceLevel(x265_param& param, VPS& vps)
             if (!param.rc.vbvBufferSize)
                 param.rc.vbvBufferSize = allowHighTier ? l.maxCpbSizeHigh : l.maxCpbSizeMain;
             x265_log(&param, X265_LOG_WARNING, "Specifying a decoder level with constant rate factor rate-control requires\n");
-            x265_log(&param, X265_LOG_WARNING, "enabling VBV with vbv-bufsize=%dkb vbv-maxrate=%dkbps. VBV outputs are non-deterministic!\n",
+            x265_log(&param, X265_LOG_WARNING, "enabling VBV with vbv-bufsize=%dkb vbv-maxrate=%dkbps.\n",
                      param.rc.vbvBufferSize, param.rc.vbvMaxBitrate);
         }
         break;
