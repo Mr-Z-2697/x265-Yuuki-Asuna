@@ -668,7 +668,7 @@ int x265_param_default_preset(x265_param* param, const char* preset, const char*
             param->bEnableRectInter=0;
             param->bEnableStrongIntraSmoothing=0;
             param->bIntraInBFrames=1;
-            param->bEnableWeightedBiPred=1;
+            param->bEnableWeightedBiPred=0;
             param->deblockingFilterBetaOffset=-1;
             param->deblockingFilterTCOffset=-1;
             param->lookaheadDepth=80;
@@ -740,7 +740,7 @@ int x265_param_default_preset(x265_param* param, const char* preset, const char*
             param->deblockingFilterBetaOffset = 1;
             param->deblockingFilterTCOffset = 1;
         }
-        else if (!strncmp(tune,"f",1)) //get faster
+        else if (!strncmp(tune,"f",1) && strncmp(tune,"fa",2)) // get faster and whoa did you misspell fastdecode?
         {
             param->searchMethod=X265_HEX_SEARCH;
             param->subpelRefine=2;
@@ -877,7 +877,7 @@ int x265_param_default_preset(x265_param* param, const char* preset, const char*
                 param->frameNumThreads=1;
             }
         }
-        else if (!strncmp(tune,"vq",2)) //vmaf quality
+        else if (!strncmp(tune,"vq",2)) // visual quality with help from vmaf
         {
             std::string tune_s=tune;
             int vq_lvl=1;
@@ -886,19 +886,36 @@ int x265_param_default_preset(x265_param* param, const char* preset, const char*
                 vq_lvl=std::stoi(tune_s.substr(2));
             }
 
+            // [[fallthrough]] is c++17 stuff? but GCC doesn't complaint so hell yea let's go
             switch (vq_lvl)
             {
+                case 7:
+                    param->lookaheadDepth=250; // heavy on memory
+                    [[fallthrough]];
+                case 6:
+                    param->subpelRefine=7; /* not really very computationally expensive, nor important.
+                                            in x264 the subme parameter is actually multiple options
+                                            merged together, x265 has individual parameters for them. */
+                    [[fallthrough]];
+                case 5:
+                    param->bEnableRectInter=1;
+                    [[fallthrough]];
+                case 4:
+                    param->recursionSkipMode=0;
+                    [[fallthrough]];
                 case 3:
                     param->bEnableHME=1;
                     param->hmeSearchMethod[0]=param->hmeSearchMethod[2]=X265_STAR_SEARCH;
                     param->hmeSearchMethod[1]=X265_UMH_SEARCH;
                     param->lookaheadSlices=0;
+                    [[fallthrough]];
                 case 2:
                     param->maxCUSize=64;
                     param->rc.qgSize=64;
+                    [[fallthrough]];
                 case 1:
                     param->tuQTMaxInterDepth=2;
-                    param->tuQTMaxIntraDepth=2;
+                    param->tuQTMaxIntraDepth=3;
                     param->bframes=3; /*Contrary to popular belief, people,
                     (too many) bframes is not good for your anime.  (at least in x265:)
                     https://i.imgur.com/7yxvMqr.jpg */
