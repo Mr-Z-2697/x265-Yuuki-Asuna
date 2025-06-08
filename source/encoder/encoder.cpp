@@ -2785,9 +2785,6 @@ void Encoder::printSummary()
                 (float)100.0 * (m_rateControl->m_numEntries - m_rpsInSpsCount) / m_rateControl->m_numEntries);
         }
 
-        if (m_param->totalFrames && (uint32_t)m_param->totalFrames > m_analyzeAll[layer].m_numPics)
-            x265_log(m_param, X265_LOG_ERROR, "not all %d frames encoded.\n", m_param->totalFrames);
-
         if (m_analyzeAll[layer].m_numPics)
         {
             int p = 0;
@@ -2964,6 +2961,9 @@ void Encoder::printSummary()
 #undef ELAPSED_SEC
 #undef ELAPSED_MSEC
 #endif
+
+        if (m_param->totalFrames && (uint32_t)m_param->totalFrames > m_analyzeAll[layer].m_numPics)
+            x265_log(m_param, X265_LOG_ERROR, "not all %d frames encoded.\n", m_param->totalFrames);
     }
 }
 
