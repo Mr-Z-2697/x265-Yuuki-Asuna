@@ -670,7 +670,7 @@ int x265_param_default_preset(x265_param* param, const char* preset, const char*
             param->lookaheadDepth=80;
             param->bOpenGOP=0;
             param->limitModes=0;
-            param->bframes=8;
+            param->bframes=5;
             param->rdLevel=6;
             param->rc.rfConstant=14;
         }
