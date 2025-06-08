@@ -29,8 +29,6 @@
 #include "x265cli.h"
 #include "abrEncApp.h"
 
-volatile int numErrorsDuringEncoding;
-
 #if HAVE_VLD
 /* Visual Leak Detector */
 #include <vld.h>
@@ -365,5 +363,5 @@ int main(int argc, char **argv)
     assert(VLDReportLeaks() == 0);
 #endif
 
-    return ret || numErrorsDuringEncoding > 0;
+    return ret;
 }
