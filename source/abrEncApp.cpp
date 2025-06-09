@@ -256,6 +256,7 @@ namespace X265_NS {
         }
         m_param->isAbrLadderEnable = m_parent->m_numEncodes > 1;
 
+#ifdef ENABLE_ZIMG
         for (auto &&i : m_cliopt.filters)
         {
             i->setParam(m_param);
@@ -264,6 +265,7 @@ namespace X265_NS {
                 return -1;
             }
         }
+#endif
 
         /* This allows muxers to modify bitstream format */
         m_cliopt.output->setParam(m_param);
@@ -1210,6 +1212,7 @@ ret:
                 src->format = m_parentEnc->m_param->format;
                 if (m_input[view]->readPicture(*src) && !b_ctrl_c)
                 {
+#ifdef ENABLE_ZIMG
                     for (auto &&i : m_cliopt->filters)
                     {
                         i->processFrame(*src);
@@ -1221,6 +1224,7 @@ ret:
                             break;
                         }
                     }
+#endif
 
                     dest->poc = src->poc;
                     dest->pts = src->pts;
