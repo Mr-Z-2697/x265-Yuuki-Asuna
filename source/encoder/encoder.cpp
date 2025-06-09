@@ -3898,7 +3898,7 @@ void Encoder::configureDolbyVisionParams(x265_param* p)
     if (dovi[doviProfile].doviProfileId == 81)
         p->bEmitHDR10SEI = p->bEmitCLL = 1;
 
-    if (dovi[doviProfile].doviProfileId == 50)
+    if (dovi[doviProfile].doviProfileId == 50 && !p->crQpOffsetSet)
         p->crQpOffset = 3;
 }
 
@@ -4057,7 +4057,7 @@ void Encoder::configure(x265_param *p)
     /* In 444, chroma gets twice as much resolution, so halve quality when psy-rd is enabled */
     if (p->internalCsp == X265_CSP_I444 && p->psyRd)
     {
-        if (!p->cbQpOffset && !p->crQpOffset)
+        if (!p->cbQpOffset && !p->crQpOffset && !p->cbQpOffsetSet && !p->crQpOffsetSet)
         {
             p->cbQpOffset = MAX_CHROMA_QP_OFFSET / 2;
             p->crQpOffset = MAX_CHROMA_QP_OFFSET / 2;
