@@ -30,7 +30,9 @@
 #include "input/input.h"
 #include "output/output.h"
 #include "output/reconplay.h"
+#ifdef ENABLE_ZIMG
 #include "filters/filters.h"
+#endif
 
 #include <getopt.h>
 
@@ -88,7 +90,9 @@ static const struct option long_options[] =
     { "input-depth",    required_argument, NULL, 0 },
     { "input-res",      required_argument, NULL, 0 },
     { "input-csp",      required_argument, NULL, 0 },
+#ifdef ENABLE_ZIMG
     { "vf",             required_argument, NULL, 0 },
+#endif
     { "interlace",      required_argument, NULL, 0 },
     { "no-interlace",         no_argument, NULL, 0 },
     { "field",                no_argument, NULL, 0 },
@@ -439,8 +443,10 @@ static const struct option long_options[] =
         int64_t startTime;
         int64_t prevUpdateTime;
         int64_t prevUpdateTimeFile;
+#ifdef ENABLE_ZIMG
         char* vf;
         vector<Filter*> filters;
+#endif
         const char* readerOpts;
 
         int argCnt;
@@ -491,7 +497,9 @@ static const struct option long_options[] =
             prevUpdateTime = 0;
             prevUpdateTimeFile = 0;
             bDither = false;
+#ifdef ENABLE_ZIMG
             vf = NULL;
+#endif
             isAbrLadderConfig = false;
             enableScaler = false;
             encName[0] = 0;
