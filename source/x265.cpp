@@ -340,6 +340,13 @@ int main(int argc, char **argv)
         }
     }
 
+    int totalErrors = numErrorsDuringEncoding;
+    if (cliopt[0].param->internalBitDepth != X265_DEPTH)
+    {
+        for (uint8_t idx = 0; idx < numEncodes; idx++)
+            totalErrors += cliopt[idx].api->encoder_get_errors();
+    }
+
     abrEnc->destroy();
     delete abrEnc;
 
@@ -363,5 +370,13 @@ int main(int argc, char **argv)
     assert(VLDReportLeaks() == 0);
 #endif
 
-    return ret;
+    if (!!totalErrors)
+    {
+        x265_log(0,X265_LOG_ERROR,"Reported Errors During Encoding: %d\n",totalErrors);
+        return 5;
+    }
+    else
+    {
+        return ret;
+    }
 }

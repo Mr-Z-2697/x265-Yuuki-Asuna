@@ -740,6 +740,11 @@ void x265_encoder_close(x265_encoder *enc)
     }
 }
 
+int x265_encoder_get_errors()
+{
+    return numErrorsDuringEncoding;
+}
+
 int x265_encoder_intra_refresh(x265_encoder *enc)
 {
     if (!enc)
@@ -1086,6 +1091,7 @@ static const x265_api libapi =
     &x265_encoder_get_stats,
     &x265_encoder_log,
     &x265_encoder_close,
+    &x265_encoder_get_errors,
     &x265_cleanup,
 
     sizeof(x265_frame_stats),
