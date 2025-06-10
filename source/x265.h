@@ -1707,7 +1707,7 @@ typedef struct x265_param
 
     int opts;
 
-    bool bStylish;
+    int bStylish;
 
     struct
     {
