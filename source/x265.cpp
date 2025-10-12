@@ -310,6 +310,7 @@ int main(int argc, char **argv)
     }
 
     int ret = 0;
+    int x265_internalBD = cliopt[0].param->internalBitDepth;
 
     if (cliopt[0].scenecutAwareQpConfig)
     {
@@ -340,7 +341,7 @@ int main(int argc, char **argv)
     }
 
     int totalErrors = numErrorsDuringEncoding;
-    if (cliopt[0].param->internalBitDepth != X265_DEPTH)
+    if (x265_internalBD != X265_DEPTH)
     {
         for (uint8_t idx = 0; idx < numEncodes; idx++)
             totalErrors += cliopt[idx].api->encoder_get_errors();
