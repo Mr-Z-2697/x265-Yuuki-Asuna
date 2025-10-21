@@ -2571,7 +2571,7 @@ char *x265_param2string(x265_param* p, int padx, int pady)
     BOOL(p->bEnableRectInter, "rect");
     BOOL(p->bEnableAMP, "amp");
     s += snprintf(s, bufSize - (s - buf), " scenecut=%d", p->scenecutThreshold);
-    BOOL(p->bscenecutFlash, "scenecut-flash");
+    // BOOL(p->bscenecutFlash, "scenecut-flash");
     s += snprintf(s, bufSize - (s - buf), " hist-scenecut=%d", p->bHistBasedSceneCut);
 
     s += snprintf(s, bufSize - (s - buf), " rc-lookahead=%d", p->lookaheadDepth);
