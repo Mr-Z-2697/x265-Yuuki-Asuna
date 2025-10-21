@@ -204,6 +204,7 @@ void x265_param_default(x265_param* param)
     param->bFrameAdaptive = X265_B_ADAPT_TRELLIS;
     param->bBPyramid = 1;
     param->scenecutThreshold = 40; /* Magic number pulled in from x264 */
+    param->bscenecutFlash = 1;
     param->bHistBasedSceneCut = 0;
     param->lookaheadSlices = 8;
     param->lookaheadThreads = 0;
@@ -1300,6 +1301,7 @@ int x265_param_parse(x265_param* p, const char* name, const char* value)
            p->scenecutThreshold = atoi(value);
        }
     }
+    OPT("scenecut-flash") p->bscenecutFlash = atobool(value);
     OPT("temporal-layers") p->bEnableTemporalSubLayers = atoi(value);
     OPT("keyint") p->keyframeMax = atoi(value);
     OPT("min-keyint") p->keyframeMin = atoi(value);
@@ -2599,6 +2601,7 @@ char *x265_param2string(x265_param* p, int padx, int pady)
     BOOL(p->bEnableRectInter, "rect");
     BOOL(p->bEnableAMP, "amp");
     s += snprintf(s, bufSize - (s - buf), " scenecut=%d", p->scenecutThreshold);
+    BOOL(p->bscenecutFlash, "scenecut-flash");
     s += snprintf(s, bufSize - (s - buf), " hist-scenecut=%d", p->bHistBasedSceneCut);
 
     s += snprintf(s, bufSize - (s - buf), " rc-lookahead=%d", p->lookaheadDepth);
@@ -3053,6 +3056,7 @@ void x265_copy_params(x265_param* dst, x265_param* src)
     dst->lookaheadSlices = src->lookaheadSlices;
     dst->lookaheadThreads = src->lookaheadThreads;
     dst->scenecutThreshold = src->scenecutThreshold;
+    dst->bscenecutFlash = src->bscenecutFlash;
     dst->bHistBasedSceneCut = src->bHistBasedSceneCut;
     dst->bIntraRefresh = src->bIntraRefresh;
     dst->maxCUSize = src->maxCUSize;
