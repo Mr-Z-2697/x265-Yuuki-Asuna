@@ -213,7 +213,7 @@ namespace X265_NS {
         H0("   --gop-lookahead <integer>     Extends gop boundary if a scenecut is found within this from keyint boundary. Default 0\n");
         H0("   --no-scenecut                 Disable adaptive I-frame decision\n");
         H0("   --scenecut <integer>          How aggressively to insert extra I-frames. Default %d\n", param->scenecutThreshold);
-        H0("   --[no-]scenecut-flash         Flash detection in scenecut, requires B frames. Default %s\n", OPT(param->bscenecutFlash));
+        // H0("   --[no-]scenecut-flash         Flash detection in scenecut, requires B frames. Default %s\n", OPT(param->bscenecutFlash));
         H1("   --scenecut-bias <0..100.0>    Bias for scenecut detection. Default %.2f\n", param->scenecutBias);
         H0("   --hist-scenecut               Enables histogram-based scene-cut detection using a histogram-based algorithm.\n");
         H0("   --no-hist-scenecut            Disables histogram-based scene-cut detection using a histogram-based algorithm.\n");
