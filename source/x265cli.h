@@ -152,6 +152,8 @@ static const struct option long_options[] =
     { "gop-lookahead",  required_argument, NULL, 0 },
     { "scenecut",       required_argument, NULL, 0 },
     { "no-scenecut",          no_argument, NULL, 0 },
+    { "scenecut-flash",       no_argument, NULL, 0 },
+    { "no-scenecut-flash",    no_argument, NULL, 0 },
     { "scenecut-bias",  required_argument, NULL, 0 },
     { "hist-scenecut",        no_argument, NULL, 0},
     { "no-hist-scenecut",     no_argument, NULL, 0},
