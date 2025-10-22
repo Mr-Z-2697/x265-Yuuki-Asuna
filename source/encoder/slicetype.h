@@ -255,9 +255,9 @@ protected:
     /* called by slicetypeAnalyse() to effect cuTree adjustments to adaptive
      * quant offsets */
     void    cuTree(Lowres **frames, int numframes, bool bintra);
-    void    estimateCUPropagate(Lowres **frames, double average_duration, int p0, int p1, int b, int referenced);
-    void    cuTreeFinish(Lowres *frame, double averageDuration, int ref0Distance);
-    void    computeCUTreeQpOffset(Lowres *frame, double averageDuration, int ref0Distance);
+    void    estimateCUPropagate(Lowres **frames, int p0, int p1, int b, int referenced);
+    void    cuTreeFinish(Lowres *frame, int ref0Distance);
+    void    computeCUTreeQpOffset(Lowres *frame, int ref0Distance);
 
     /* called by getEstimatedPictureCost() to finalize cuTree costs */
     int64_t frameCostRecalculate(Lowres **frames, int p0, int p1, int b);
