@@ -4700,7 +4700,7 @@ void Encoder::configure(x265_param *p)
         if (p->internalCsp != X265_CSP_I420 || p->internalBitDepth != 10 || p->vui.colorPrimaries != 9 ||
             p->vui.transferCharacteristics != 16 || p->vui.matrixCoeffs != 9)
         {
-            x265_log(p, X265_LOG_ERROR, "Recommended Settings for HDR10-opt: colour primaries should be BT.2020,\n"
+            x265_log(p, X265_LOG_WARNING, "Recommended Settings for HDR10-opt: colour primaries should be BT.2020,\n"
                                         "                                            transfer characteristics should be SMPTE ST.2084,\n"
                                         "                                            matrix coeffs should be BT.2020,\n"
                                         "                                            the input video should be 10 bit 4:2:0\n"
