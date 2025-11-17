@@ -4652,8 +4652,7 @@ void Encoder::configure(x265_param *p)
     {
         if (m_param->sourceHeight < 540)
         {
-            x265_log(p, X265_LOG_WARNING, "Source height < 540p is too low for HME. Disabling HME.\n");
-            p->bEnableHME = 0;
+            x265_log(p, X265_LOG_WARNING, "Source height < 540p may be too low for HME.\n");
         }
     }
 
