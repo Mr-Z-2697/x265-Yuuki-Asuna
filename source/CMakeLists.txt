@@ -591,10 +591,7 @@ int main() {
     if (CC_HAS_NO_ARRAY_BOUNDS)
         add_definitions(-Wno-array-bounds) # these are unhelpful
     endif()
-    check_cxx_compiler_flag(-ffast-math CC_HAS_FAST_MATH) 
-    if (CC_HAS_FAST_MATH)
-        add_definitions(-ffast-math)
-    endif()
+    add_definitions(-fno-fast-math)
     if (NOT (ARM64 OR CROSS_COMPILE_ARM64 OR RISCV64 OR CROSS_COMPILE_RISCV64))
         check_cxx_compiler_flag(-mstackrealign CC_HAS_STACK_REALIGN)
         if (CC_HAS_STACK_REALIGN)
