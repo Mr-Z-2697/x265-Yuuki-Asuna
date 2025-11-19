@@ -316,6 +316,9 @@ void x265_param_default(x265_param* param)
     param->rc.rateControlMode = X265_RC_CRF;
     param->rc.qp = 32;
     param->rc.aqMode = X265_AQ_AUTO_VARIANCE;
+    param->rc.aq1const = 6969.f;
+    param->rc.aq2const = 6969.f;
+    param->rc.aq2pow = 6969.f;
     param->rc.hevcAq = 0;
     param->rc.qgSize = 32;
     param->rc.aqStrength = 1.0;
@@ -1410,6 +1413,9 @@ int x265_param_parse(x265_param* p, const char* name, const char* value)
     OPT("cplxblur") p->rc.complexityBlur = atof(value);
     OPT("qblur") p->rc.qblur = atof(value);
     OPT("aq-mode") p->rc.aqMode = atoi(value);
+    OPT("aq1const") p->rc.aq1const = atof(value);
+    OPT("aq2const") p->rc.aq2const = atof(value);
+    OPT("aq2pow") p->rc.aq2pow = atof(value);
     OPT("aq-strength") p->rc.aqStrength = atof(value);
     OPT("aq-bias-strength") p->rc.aqBiasStrength = atof(value);
     OPT("vbv-maxrate") p->rc.vbvMaxBitrate = atoi(value);
@@ -3134,6 +3140,9 @@ void x265_copy_params(x265_param* dst, x265_param* src)
     dst->rc.rfConstant = src->rc.rfConstant;
     dst->rc.qpStep = src->rc.qpStep;
     dst->rc.aqMode = src->rc.aqMode;
+    dst->rc.aq1const = src->rc.aq1const;
+    dst->rc.aq2const = src->rc.aq2const;
+    dst->rc.aq2pow = src->rc.aq2pow;
     dst->rc.aqStrength = src->rc.aqStrength;
     dst->rc.aqBiasStrength = src->rc.aqBiasStrength;
     dst->rc.vbvBufferSize = src->rc.vbvBufferSize;
