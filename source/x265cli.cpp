@@ -413,7 +413,10 @@ namespace X265_NS {
            "                                     - 0: no information will be written in SEI\n"
            "                                     - 1: write x265 information\n"
            "                                     - 2: write x265 options\n"
-           "                                     - 3: write x265 information and options\n", param->opts);
+           "                                     - 3: write x265 information and options\n"
+           "                                     - 5: write '1' but only once if repeat-headers\n"
+           "                                     - 6: write '2' but only once if repeat-headers\n"
+           "                                     - 7: write '3' but only once if repeat-headers\n", param->opts);
         H1("   --hash <integer>              Decoded Picture Hash SEI 0: disabled, 1: MD5, 2: CRC, 3: Checksum. Default %d\n", param->decodedPictureHashSEI);
         H0("   --atc-sei <integer>           Emit the alternative transfer characteristics SEI message where the integer is the preferred transfer characteristic. Default disabled\n");
         H0("   --pic-struct <integer>        Set the picture structure and emit it in the picture timing SEI message. Values in the range 0..12. See D.3.3 of the HEVC spec. for a detailed explanation.\n");

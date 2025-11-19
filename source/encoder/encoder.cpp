@@ -3497,6 +3497,9 @@ void Encoder::getStreamHeaders(NALList& list, Entropy& sbacCoder, Bitstream& bs)
 
     if (m_param->bEmitInfoSEI)
     {
+        if (m_param->opts & 4) // 0b100
+            if (m_param->bRepeatHeaders)
+                m_param->bEmitInfoSEI = 0;
         char *opts = x265_param2string(m_param, m_sps.conformanceWindow.rightOffset, m_sps.conformanceWindow.bottomOffset);
         if (opts)
         {
