@@ -2110,8 +2110,8 @@ int x265_check_params(x265_param* param)
         "max-vbv-fullness must be a fraction 0 - 100");
     CHECK(param->rc.bitrate < 0,
           "Target bitrate can not be less than zero");
-    CHECK(param->rc.qCompress < 0.5 || param->rc.qCompress > 1.0,
-          "qCompress must be between 0.5 and 1.0");
+    CHECK(param->rc.qCompress < 0.0 || param->rc.qCompress > 1.0,
+          "qCompress must be between 0.0 and 1.0");
     if (param->noiseReductionIntra)
         CHECK(0 > param->noiseReductionIntra || param->noiseReductionIntra > 2000, "Valid noise reduction range 0 - 2000");
     if (param->noiseReductionInter)
