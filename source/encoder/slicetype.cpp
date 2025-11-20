@@ -456,19 +456,17 @@ void LookaheadTLD::calcAdaptiveQuantFrame(Frame *curFrame, x265_param* param)
     int maxRow = curFrame->m_fencPic->m_picHeight;
     int blockCount, loopIncr;
     float modeOneConst, modeTwoConst, modeTwoPow;
-    modeTwoPow = param->rc.aq2pow==6969.f ? 0.1f : param->rc.aq2pow;
+    modeOneConst = param->rc.aq1const;
+    modeTwoConst = param->rc.aq2const;
+    modeTwoPow = param->rc.aq2pow;
     if (param->rc.qgSize == 8)
     {
         blockCount = curFrame->m_lowres.maxBlocksInRowFullRes * curFrame->m_lowres.maxBlocksInColFullRes;
-        modeOneConst = param->rc.aq1const==6969.f ? 11.427f : param->rc.aq1const;
-        modeTwoConst = param->rc.aq2const==6969.f ? 8.f : param->rc.aq2const;
         loopIncr = 8;
     }
     else
     {
         blockCount = widthInCU * heightInCU;
-        modeOneConst = param->rc.aq1const==6969.f ? 14.427f : param->rc.aq1const;
-        modeTwoConst = param->rc.aq2const==6969.f ? 11.f : param->rc.aq2const;
         loopIncr = 16;
     }
 

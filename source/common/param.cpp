@@ -316,9 +316,9 @@ void x265_param_default(x265_param* param)
     param->rc.rateControlMode = X265_RC_CRF;
     param->rc.qp = 32;
     param->rc.aqMode = X265_AQ_AUTO_VARIANCE;
-    param->rc.aq1const = 6969.f;
-    param->rc.aq2const = 6969.f;
-    param->rc.aq2pow = 6969.f;
+    param->rc.aq1const = 14.427f;
+    param->rc.aq2const = 11.f;
+    param->rc.aq2pow = 0.1f;
     param->rc.hevcAq = 0;
     param->rc.qgSize = 32;
     param->rc.aqStrength = 1.0;
@@ -1556,7 +1556,15 @@ int x265_param_parse(x265_param* p, const char* name, const char* value)
     OPT2("pools", "numa-pools") snprintf(p->numaPools, X265_MAX_STRING_SIZE, "%s", value);
     OPT("lambda-file") snprintf(p->rc.lambdaFileName, X265_MAX_STRING_SIZE, "%s", value);
     OPT("analysis-reuse-file") snprintf(p->analysisReuseFileName, X265_MAX_STRING_SIZE, "%s", value);
-    OPT("qg-size") p->rc.qgSize = atoi(value);
+    OPT("qg-size")
+    {
+        p->rc.qgSize = atoi(value);
+        if (p->rc.qgSize == 8)
+        {
+            p->rc.aq1const = 11.427f;
+            p->rc.aq2const = 8.f;
+        }
+    }
     OPT("master-display") snprintf(p->masteringDisplayColorVolume, X265_MAX_STRING_SIZE, "%s", value);
     OPT("max-cll") bError |= sscanf(value, "%hu,%hu", &p->maxCLL, &p->maxFALL) != 2;
     OPT("min-luma") p->minLuma = (uint16_t)atoi(value);
