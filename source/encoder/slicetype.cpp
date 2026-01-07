@@ -548,7 +548,7 @@ void LookaheadTLD::calcAdaptiveQuantFrame(Frame *curFrame, x265_param* param)
                                 edgeDensity = edgeDensityCu(curFrame, avgAngle, blockX, blockY, param->rc.qgSize);
                                 if (edgeDensity)
                                 {
-                                    qp_adj = pow(edgeDensity * bit_depth_correction + 1, 0.1);
+                                    qp_adj = pow(edgeDensity * bit_depth_correction + 1, modeTwoPow);
                                     //Increasing the QP of a block if its edge orientation lies around the multiples of 45 degree
                                     if ((avgAngle >= EDGE_INCLINATION - 15 && avgAngle <= EDGE_INCLINATION + 15) || (avgAngle >= EDGE_INCLINATION + 75 && avgAngle <= EDGE_INCLINATION + 105))
                                         curFrame->m_lowres.edgeInclined[blockXY] = 1;
@@ -557,7 +557,7 @@ void LookaheadTLD::calcAdaptiveQuantFrame(Frame *curFrame, x265_param* param)
                                 }
                                 else
                                 {
-                                    qp_adj = pow(energy * bit_depth_correction + 1, 0.1);
+                                    qp_adj = pow(energy * bit_depth_correction + 1, modeTwoPow);
                                     curFrame->m_lowres.edgeInclined[blockXY] = 0;
                                 }
                             }
