@@ -2647,7 +2647,7 @@ int Encoder::reconfigureParam(x265_param* encParam, x265_param* param)
     encParam->forceFlush = param->forceFlush;
     /* To add: Loop Filter/deblocking controls, transform skip, signhide require PPS to be resent */
     /* To add: SAO, temporal MVP, AMP, TU depths require SPS to be resent, at every CVS boundary */
-    return x265_check_params(encParam);
+    return x265_api_get(encParam->internalBitDepth)->encoder_check_params(encParam);
 }
 
 bool Encoder::isReconfigureRc(x265_param* latestParam, x265_param* param_in)
