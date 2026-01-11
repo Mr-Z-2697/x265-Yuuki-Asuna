@@ -2709,6 +2709,7 @@ typedef struct x265_api
     void          (*encoder_log)(x265_encoder*, int, char**);
     void          (*encoder_close)(x265_encoder*);
     int           (*encoder_get_errors)(void);
+    int           (*encoder_check_params)(x265_param*);
     void          (*cleanup)(void);
 
     int           sizeof_frame_stats;   /* sizeof(x265_frame_stats) */
