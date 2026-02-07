@@ -148,7 +148,7 @@ int GOPOutput::writeHeaders(const x265_nal* p_nal, uint32_t nalcount)
     return p_nal[0].sizeBytes + p_nal[1].sizeBytes + p_nal[2].sizeBytes;
 }
 
-int GOPOutput::writeFrame(const x265_nal* p_nalu, uint32_t nalcount, x265_picture& pic)
+int GOPOutput::writeFrame(const x265_nal* p_nalu, uint32_t nalcount, x265_picture&)
 {
     const bool is_keyframe = p_nalu->type == NAL_UNIT_CODED_SLICE_IDR_N_LP || p_nalu->type == NAL_UNIT_CODED_SLICE_CRA;
     int i_size = 0;
