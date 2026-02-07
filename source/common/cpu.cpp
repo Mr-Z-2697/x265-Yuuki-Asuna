@@ -146,7 +146,7 @@ bool detect512()
     return(enable512);
 }
 
-uint32_t cpu_detect(bool benableavx512 )
+uint32_t cpu_detect(bool)
 {
 
     uint32_t cpu = 0; 
@@ -348,7 +348,7 @@ void PFX(cpu_neon_test)(void);
 int PFX(cpu_fast_neon_mrc_test)(void);
 }
 
-uint32_t cpu_detect(bool benableavx512)
+uint32_t cpu_detect(bool)
 {
     int flags = 0;
 
@@ -392,7 +392,7 @@ uint32_t cpu_detect(bool benableavx512)
 #elif X265_ARCH_ARM64
 #include "aarch64/cpu.h"
 
-uint32_t cpu_detect(bool benableavx512)
+uint32_t cpu_detect(bool)
 {
     (void)benableavx512;
     int flags = 0;
@@ -406,7 +406,7 @@ uint32_t cpu_detect(bool benableavx512)
 
 #elif X265_ARCH_POWER8
 
-uint32_t cpu_detect(bool benableavx512)
+uint32_t cpu_detect(bool)
 {
 #if HAVE_ALTIVEC
     return X265_CPU_ALTIVEC;
@@ -417,7 +417,7 @@ uint32_t cpu_detect(bool benableavx512)
 
 #else // if X265_ARCH_POWER8
 
-uint32_t cpu_detect(bool benableavx512)
+uint32_t cpu_detect(bool)
 {
     return 0;
 }
