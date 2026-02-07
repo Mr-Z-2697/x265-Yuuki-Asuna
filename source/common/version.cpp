@@ -31,25 +31,15 @@
 
 #if defined(__clang__)
 #define COMPILEDBY  "[clang " XSTR(__clang_major__) "." XSTR(__clang_minor__) "." XSTR(__clang_patchlevel__) "]"
-#ifdef __IA64__
-#define ONARCH    "[on 64-bit] "
-#else
-#define ONARCH    "[on 32-bit] "
-#endif
 #endif
 
 #if defined(__GNUC__) && !defined(__INTEL_COMPILER) && !defined(__clang__)
 #define COMPILEDBY  "[GCC " XSTR(__GNUC__) "." XSTR(__GNUC_MINOR__) "." XSTR(__GNUC_PATCHLEVEL__) "]"
-#ifdef __IA64__
-#define ONARCH    "[on 64-bit] "
-#else
-#define ONARCH    "[on 32-bit] "
-#endif
 #endif
 
 #ifdef __INTEL_COMPILER
 #define COMPILEDBY "[ICC " XSTR(__INTEL_COMPILER) "]"
-#elif  _MSC_VER
+#elif  _MSC_VER && !defined(__GNUC__) && !defined(__clang__)
 #define COMPILEDBY "[MSVC " XSTR(_MSC_VER) "]"
 #endif
 
