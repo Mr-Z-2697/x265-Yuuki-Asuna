@@ -60,10 +60,13 @@ namespace X265_NS {
     static void showHelp(x265_param *param)
     {
         int level = param->logLevel;
+        int bufsize = 1048576, bufwritten = 0;
+        char *buf;
+        CHECKED_MALLOC_ZERO(buf, char, bufsize);
 
 #define OPT(value) (value ? "enabled" : "disabled")
-#define H0 printf
-#define H1 if (level >= X265_LOG_DEBUG) printf
+#define H0(...) bufwritten += snprintf(buf + bufwritten, bufsize - bufwritten, __VA_ARGS__)
+#define H1(...) if (level >= X265_LOG_DEBUG) bufwritten += snprintf(buf + bufwritten, bufsize - bufwritten, __VA_ARGS__)
 
         H0("\nSyntax: x265 [options] infile [-o] outfile\n");
         H0("    infile can be YUV or Y4M, or frame server format\n");
@@ -484,9 +487,17 @@ namespace X265_NS {
 #undef OPT
 #undef H0
 #undef H1
+
+#ifndef _WIN32
+        printf("%s", buf);
+#else
+        printf_s("%s", buf);
+#endif
         if (level < X265_LOG_DEBUG)
             printf("\nUse --fullhelp for a full listing (or --log-level full --help)\n");
         printf("\n\nComplete documentation may be found at http://x265.readthedocs.org/en/default/cli.html\n");
+    fail:
+        X265_FREE_ZERO(buf);
         exit(1);
     }
 
