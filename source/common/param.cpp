@@ -1542,34 +1542,6 @@ int x265_param_parse(x265_param* p, const char* name, const char* value)
                          &p->vui.defDispWinRightOffset,
                          &p->vui.defDispWinBottomOffset) != 4;
     }
-    OPT("nr-intra") p->noiseReductionIntra = atoi(value);
-    OPT("nr-inter") p->noiseReductionInter = atoi(value);
-    OPT("pass")
-    {
-        int pass = x265_clip3(0, 3, atoi(value));
-        p->rc.bStatWrite = pass & 1;
-        p->rc.bStatRead = pass & 2;
-        p->rc.dataShareMode = X265_SHARE_MODE_FILE;
-    }
-    OPT("stats") snprintf(p->rc.statFileName, X265_MAX_STRING_SIZE, "%s", value);
-    OPT("scaling-list") snprintf(p->scalingLists, X265_MAX_STRING_SIZE, "%s", value);
-    OPT2("pools", "numa-pools") snprintf(p->numaPools, X265_MAX_STRING_SIZE, "%s", value);
-    OPT("lambda-file") snprintf(p->rc.lambdaFileName, X265_MAX_STRING_SIZE, "%s", value);
-    OPT("analysis-reuse-file") snprintf(p->analysisReuseFileName, X265_MAX_STRING_SIZE, "%s", value);
-    OPT("qg-size")
-    {
-        p->rc.qgSize = atoi(value);
-        if (p->rc.qgSize == 8)
-        {
-            p->rc.aq1const = 11.427f;
-            p->rc.aq2const = 8.f;
-        }
-    }
-    OPT("master-display") snprintf(p->masteringDisplayColorVolume, X265_MAX_STRING_SIZE, "%s", value);
-    OPT("max-cll") bError |= sscanf(value, "%hu,%hu", &p->maxCLL, &p->maxFALL) != 2;
-    OPT("min-luma") p->minLuma = (uint16_t)atoi(value);
-    OPT("max-luma") p->maxLuma = (uint16_t)atoi(value);
-    OPT("uhd-bd") p->uhdBluray = atobool(value);
     else
         bExtraParams = true;
 
@@ -1577,6 +1549,34 @@ int x265_param_parse(x265_param* p, const char* name, const char* value)
     if (bExtraParams)
     {
         if (0) ;
+        OPT("nr-intra") p->noiseReductionIntra = atoi(value);
+        OPT("nr-inter") p->noiseReductionInter = atoi(value);
+        OPT("pass")
+        {
+            int pass = x265_clip3(0, 3, atoi(value));
+            p->rc.bStatWrite = pass & 1;
+            p->rc.bStatRead = pass & 2;
+            p->rc.dataShareMode = X265_SHARE_MODE_FILE;
+        }
+        OPT("stats") snprintf(p->rc.statFileName, X265_MAX_STRING_SIZE, "%s", value);
+        OPT("scaling-list") snprintf(p->scalingLists, X265_MAX_STRING_SIZE, "%s", value);
+        OPT2("pools", "numa-pools") snprintf(p->numaPools, X265_MAX_STRING_SIZE, "%s", value);
+        OPT("lambda-file") snprintf(p->rc.lambdaFileName, X265_MAX_STRING_SIZE, "%s", value);
+        OPT("analysis-reuse-file") snprintf(p->analysisReuseFileName, X265_MAX_STRING_SIZE, "%s", value);
+        OPT("qg-size")
+        {
+            p->rc.qgSize = atoi(value);
+            if (p->rc.qgSize == 8)
+            {
+                p->rc.aq1const = 11.427f;
+                p->rc.aq2const = 8.f;
+            }
+        }
+        OPT("master-display") snprintf(p->masteringDisplayColorVolume, X265_MAX_STRING_SIZE, "%s", value);
+        OPT("max-cll") bError |= sscanf(value, "%hu,%hu", &p->maxCLL, &p->maxFALL) != 2;
+        OPT("min-luma") p->minLuma = (uint16_t)atoi(value);
+        OPT("max-luma") p->maxLuma = (uint16_t)atoi(value);
+        OPT("uhd-bd") p->uhdBluray = atobool(value);
         OPT("opts") p->opts = atoi(value);
         OPT("log-file") snprintf(p->logfn, X265_MAX_STRING_SIZE, "%s", value);
         OPT("log-file-level")
