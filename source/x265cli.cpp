@@ -68,6 +68,17 @@ namespace X265_NS {
 #define H0(...) bufwritten += snprintf(buf + bufwritten, bufsize - bufwritten, __VA_ARGS__)
 #define H1(...) if (level >= X265_LOG_DEBUG) bufwritten += snprintf(buf + bufwritten, bufsize - bufwritten, __VA_ARGS__)
 
+#ifdef ENABLE_LSMASH
+#define LSMASH_OUTPUT_EXT ", MP4 if *.mp4"
+#else
+#define LSMASH_OUTPUT_EXT ""
+#endif
+#ifdef ENABLE_MKV
+#define MKV_OUTPUT_EXT ", MKV if *.mkv"
+#else
+#define MKV_OUTPUT_EXT ""
+#endif
+
         H0("\nSyntax: x265 [options] infile [-o] outfile\n");
         H0("    infile can be YUV or Y4M, or frame server format\n");
         H0("    outfile is raw HEVC bitstream\n");
@@ -76,14 +87,7 @@ namespace X265_NS {
         H0("   --fullhelp                    Show all options and exit\n");
         H0("-V/--version                     Show version info and exit\n");
         H0("\nOutput Options:\n");
-        H0("-o/--output <filename>           Output file name. Default is raw bitstream"
-#ifdef ENABLE_LSMASH
-            ", MP4 if *.mp4"
-#endif
-#ifdef ENABLE_MKV
-            ", MKV if *.mkv"
-#endif
-            "\n");
+        H0("-o/--output <filename>           Output file name. Default is raw bitstream" LSMASH_OUTPUT_EXT MKV_OUTPUT_EXT "\n");
         H0("-D/--output-depth 8|10|12        Output bit depth (also internal bit depth). Default %d\n", param->internalBitDepth);
         H0("   --log-level <string>          Logging level: none error warning info debug full. Default %s\n", X265_NS::logLevelNames[param->logLevel + 1]);
         H1("   --log-file <filename>         Save log to file\n" );
@@ -487,6 +491,8 @@ namespace X265_NS {
 #undef OPT
 #undef H0
 #undef H1
+#undef LSMASH_OUTPUT_EXT
+#undef MKV_OUTPUT_EXT
 
 #ifndef _WIN32
         printf("%s", buf);
