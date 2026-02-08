@@ -505,7 +505,7 @@ namespace X265_NS {
         printf("\n\nComplete documentation may be found at http://x265.readthedocs.org/en/default/cli.html\n");
     fail:
         X265_FREE_ZERO(buf);
-        exit(1);
+        exit(0);
     }
 
     void CLIOptions::destroy()
@@ -702,8 +702,10 @@ namespace X265_NS {
 
         if (bShowHelp)
         {
+            fputc('\n', stderr);
             printVersion(globalParam, api);
-            showHelp(globalParam);
+            fprintf(stderr, "\nUse %s --fullhelp for help\n", argv[0]);
+            exit(1);
         }
 
         if (!globalParam->rc.zones[zonefileCount].zoneParam)
@@ -855,8 +857,10 @@ namespace X265_NS {
 
         if (bShowHelp)
         {
+            fputc('\n', stderr);
             printVersion(param, api);
-            showHelp(param);
+            fprintf(stderr, "\nUse %s --fullhelp for help\n", argv[0]);
+            exit(1);
         }
 
         //Set enable SVT-HEVC encoder first if found in the command line
@@ -1019,8 +1023,10 @@ namespace X265_NS {
         if (argc <= 1)
         {
             api->param_default(param);
+            fputc('\n', stderr);
             printVersion(param, api);
-            showHelp(param);
+            fprintf(stderr, "\nNo parameter, use %s --fullhelp for help\n", argv[0]);
+            exit(1);
         }
 
 #if ENABLE_MULTIVIEW
@@ -1477,8 +1483,10 @@ namespace X265_NS {
         }
         if (bShowHelp)
         {
+            fputc('\n', stderr);
             printVersion(globalParam, api);
-            showHelp(globalParam);
+            fprintf(stderr, "\nUse %s --fullhelp for help\n", argv[0]);
+            exit(1);
         }
         for (optind = 0;;)
         {
