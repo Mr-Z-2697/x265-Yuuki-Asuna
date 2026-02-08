@@ -502,9 +502,10 @@ namespace X265_NS {
         if (level < X265_LOG_DEBUG)
             printf("\nUse --fullhelp for a full listing (or --log-level full --help)\n");
         printf("\n\nComplete documentation may be found at http://x265.readthedocs.org/en/default/cli.html\n");
-    fail:
         X265_FREE_ZERO(buf);
         exit(0);
+    fail:
+        exit(1);
     }
 
     void CLIOptions::destroy()
