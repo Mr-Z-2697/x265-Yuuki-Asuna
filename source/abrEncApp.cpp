@@ -971,8 +971,6 @@ ret:
                     m_cliopt.seek + inFrameCount, stats.encodedPictureCount, profileName);
             }
 
-            api->param_free(m_param);
-
             X265_FREE(errorBuf);
             X265_FREE(rpuPayload);
 
