@@ -368,6 +368,8 @@ RateControl::RateControl(x265_param& p, Encoder *top)
         m_cuTreeStats.coeffs[i] = NULL;
         m_cuTreeStats.pos[i] = NULL;
     }
+
+    m_cuTreeStats.bRescaleEnabled = 0;
 }
 
 bool RateControl::initCUTreeSharedMem()
@@ -1853,8 +1855,6 @@ int RateControl::cuTreeRescaleInit()
             CHECKED_MALLOC(m_cuTreeStats.qpBuffer[1], uint16_t, m_cuTreeStats.srcCuCount * sizeof(uint16_t));
     }
     m_cuTreeStats.qpBufPos = -1;
-
-    m_cuTreeStats.bRescaleEnabled = 0;
 
     /* No rescaling to do */
     if (srcdimi[0] == dstdimi[0] && srcdimi[1] == dstdimi[1])
