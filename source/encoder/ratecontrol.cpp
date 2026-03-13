@@ -358,7 +358,12 @@ RateControl::RateControl(x265_param& p, Encoder *top)
     m_lstep = pow(2, m_param->rc.qpStep / 6.0);
 
     for (int i = 0; i < 2; i++)
+    {
         m_cuTreeStats.qpBuffer[i] = NULL;
+        m_cuTreeStats.scaleBuffer[i] = NULL;
+        m_cuTreeStats.coeffs[i] = NULL;
+        m_cuTreeStats.pos[i] = NULL;
+    }
 }
 
 bool RateControl::initCUTreeSharedMem()
