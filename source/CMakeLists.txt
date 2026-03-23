@@ -26,8 +26,6 @@ include(CheckCXXCompilerFlag)
 include(CheckCSourceCompiles)
 include(CheckCXXSourceCompiles)
 
-set(CMAKE_CXX_STANDARD 11)
-
 set(CMAKE_CXX_STANDARD 17)
 
 option(FPROFILE_GENERATE "Compile executable to generate usage data" OFF)
