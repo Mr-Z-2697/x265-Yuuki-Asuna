@@ -653,7 +653,7 @@ int x265_param_default_preset(x265_param* param, const char* preset, const char*
             param->limitReferences = 3;
             param->bEnableEarlySkip = 0;
             param->rdoqLevel = 1;
-            param->psyRdoq = 1.0;
+            param->psyRdoq = 0.5;
             param->subpelRefine = 3;
             param->searchMethod = X265_STAR_SEARCH;
             param->maxNumReferences = 4;
@@ -893,6 +893,7 @@ int x265_param_default_preset(x265_param* param, const char* preset, const char*
                     [[fallthrough]];
                 case 6:
                     param->rdoqLevel=2;
+                    param->psyRdoq=1.0;
                     param->subpelRefine=7; /* not really very computationally expensive, nor important.
                                             in x264 the subme parameter is actually multiple options
                                             merged together, x265 has individual parameters for them. */
