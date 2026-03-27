@@ -1739,6 +1739,9 @@ typedef struct x265_param
          * CQP rate control is implied. Default: 32 */
         int       qp;
 
+        /* Allow AQ and CUTree in CQP mode. Default: 0 */
+        int       vqp;
+
         /* target bitrate for Average BitRate (ABR) rate control. If a non- zero
          * bitrate is specified on the command line, ABR is implied. Default 0 */
         int       bitrate;

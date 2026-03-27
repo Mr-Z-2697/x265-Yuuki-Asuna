@@ -315,6 +315,7 @@ void x265_param_default(x265_param* param)
     param->rc.qpStep = 4;
     param->rc.rateControlMode = X265_RC_CRF;
     param->rc.qp = 32;
+    param->rc.vqp = 0;
     param->rc.aqMode = X265_AQ_AUTO_VARIANCE;
     param->rc.aq1const = 14.427f;
     param->rc.aq2const = 11.f;
@@ -1094,6 +1095,7 @@ int x265_zone_param_parse(x265_param* p, const char* name, const char* value)
         p->rc.qp = atoi(value);
         p->rc.rateControlMode = X265_RC_CQP;
     }
+    OPT("vqp") p->rc.vqp = atobool(value);
     OPT("bitrate")
     {
         p->rc.bitrate = atoi(value);
@@ -1474,6 +1476,7 @@ int x265_param_parse(x265_param* p, const char* name, const char* value)
         p->rc.qp = atoi(value);
         p->rc.rateControlMode = X265_RC_CQP;
     }
+    OPT("vqp") p->rc.vqp = atobool(value);
     OPT("rc-grain") p->rc.bEnableGrain = atobool(value);
     OPT("zones")
     {
@@ -2552,11 +2555,14 @@ char *x265_param2string(x265_param* p, int padx, int pady)
     // Important parameters first
     s += snprintf(s, bufSize - (s - buf), " rc=%s", p->rc.rateControlMode == X265_RC_ABR ? (
          p->rc.bitrate == p->rc.vbvMaxBitrate ? "cbr" : "abr")
-         : p->rc.rateControlMode == X265_RC_CRF ? "crf" : "cqp");
-    if (p->rc.rateControlMode == X265_RC_ABR || p->rc.rateControlMode == X265_RC_CRF)
+         : p->rc.rateControlMode == X265_RC_CRF ? "crf"
+         : p->rc.vqp ? "vqp" : "cqp");
+    if (p->rc.rateControlMode == X265_RC_ABR || p->rc.rateControlMode == X265_RC_CRF || p->rc.vqp)
     {
         if (p->rc.rateControlMode == X265_RC_CRF)
             s += snprintf(s, bufSize - (s - buf), " crf=%.2f", p->rc.rfConstant);
+        else if (p->rc.rateControlMode == X265_RC_CQP)
+            s += snprintf(s, bufSize - (s - buf), " qp=%d", p->rc.qp);
         else
             s += snprintf(s, bufSize - (s - buf), " bitrate=%d", p->rc.bitrate);
         s += snprintf(s, bufSize - (s - buf), " qcomp=%.2f", p->rc.qCompress);
@@ -2584,45 +2590,48 @@ char *x265_param2string(x265_param* p, int padx, int pady)
     BOOL(p->bLossless, "lossless");
     BOOL(p->bCULossless, "cu-lossless");
 
-    BOOL(p->rc.cuTree, "cutree");
-    if (!p->rc.hevcAq)
+    if (p->rc.rateControlMode != X265_RC_CQP || p->rc.vqp)
     {
-        s += snprintf(s, bufSize - (s - buf), " aq-mode=%d", p->rc.aqMode);
-        if ((p->rc.aqMode == X265_AQ_VARIANCE ||
-            p->rc.aqMode == X265_AQ_VARIANCE_BIASED ||
-            p->rc.aqMode == X265_AQ_VARIANCE_AUTO_MIN ||
-            p->rc.aqMode == X265_AQ_VARIANCE_AUTO_MIN_BIASED) &&
-        p->rc.aqStrength)
+        BOOL(p->rc.cuTree, "cutree");
+        if (!p->rc.hevcAq)
         {
-            if (p->rc.aq1const != 14.427f && !(p->rc.qgSize == 8 && p->rc.aq1const == 11.427f))
-                s += snprintf(s, bufSize - (s - buf), " aq1const=%.3f", p->rc.aq1const);
+            s += snprintf(s, bufSize - (s - buf), " aq-mode=%d", p->rc.aqMode);
+            if ((p->rc.aqMode == X265_AQ_VARIANCE ||
+                p->rc.aqMode == X265_AQ_VARIANCE_BIASED ||
+                p->rc.aqMode == X265_AQ_VARIANCE_AUTO_MIN ||
+                p->rc.aqMode == X265_AQ_VARIANCE_AUTO_MIN_BIASED) &&
+            p->rc.aqStrength)
+            {
+                if (p->rc.aq1const != 14.427f && !(p->rc.qgSize == 8 && p->rc.aq1const == 11.427f))
+                    s += snprintf(s, bufSize - (s - buf), " aq1const=%.3f", p->rc.aq1const);
+            }
+            if ((p->rc.aqMode == X265_AQ_AUTO_VARIANCE ||
+                p->rc.aqMode == X265_AQ_AUTO_VARIANCE_BIASED ||
+                p->rc.aqMode == X265_AQ_EDGE ||
+                p->rc.aqMode == X265_AQ_EDGE_BIASED ||
+                p->rc.aqMode == X265_AQ_VARIANCE_BIASED ||
+                p->rc.aqMode == X265_AQ_VARIANCE_AUTO_MIN ||
+                p->rc.aqMode == X265_AQ_VARIANCE_AUTO_MIN_BIASED) &&
+            p->rc.aqStrength)
+            {
+                if (p->rc.aq2const != 11.f && !(p->rc.qgSize == 8 && p->rc.aq2const == 8.f))
+                    s += snprintf(s, bufSize - (s - buf), " aq2const=%.3f", p->rc.aq2const);
+                if (p->rc.aq2pow != 0.1f)
+                    s += snprintf(s, bufSize - (s - buf), " aq2pow=%.3f", p->rc.aq2pow);
+            }
         }
-        if ((p->rc.aqMode == X265_AQ_AUTO_VARIANCE ||
-            p->rc.aqMode == X265_AQ_AUTO_VARIANCE_BIASED ||
-            p->rc.aqMode == X265_AQ_EDGE ||
-            p->rc.aqMode == X265_AQ_EDGE_BIASED ||
-            p->rc.aqMode == X265_AQ_VARIANCE_BIASED ||
-            p->rc.aqMode == X265_AQ_VARIANCE_AUTO_MIN ||
-            p->rc.aqMode == X265_AQ_VARIANCE_AUTO_MIN_BIASED) &&
-        p->rc.aqStrength)
+        else
         {
-            if (p->rc.aq2const != 11.f && !(p->rc.qgSize == 8 && p->rc.aq2const == 8.f))
-                s += snprintf(s, bufSize - (s - buf), " aq2const=%.3f", p->rc.aq2const);
-            if (p->rc.aq2pow != 0.1f)
-                s += snprintf(s, bufSize - (s - buf), " aq2pow=%.3f", p->rc.aq2pow);
+            BOOL(p->rc.hevcAq, "hevc-aq");
+            s += snprintf(s, bufSize - (s - buf), " qp-adaptation-range=%.2f", p->rc.qpAdaptationRange);
         }
+        s += snprintf(s, bufSize - (s - buf), " aq-strength=%.2f", p->rc.aqStrength);
+        if (p->rc.aqMode == X265_AQ_VARIANCE_AUTO_MIN_BIASED || p->rc.aqMode == X265_AQ_VARIANCE_BIASED || p->rc.aqMode == X265_AQ_EDGE_BIASED || p->rc.aqMode == X265_AQ_AUTO_VARIANCE_BIASED)
+        {
+            s += snprintf(s, bufSize - (s - buf), " aq-bias-strength=%.2f", p->rc.aqBiasStrength);
+        }
+        BOOL(p->bAQMotion, "aq-motion");
     }
-    else
-    {
-        BOOL(p->rc.hevcAq, "hevc-aq");
-        s += snprintf(s, bufSize - (s - buf), " qp-adaptation-range=%.2f", p->rc.qpAdaptationRange);
-    }
-    s += snprintf(s, bufSize - (s - buf), " aq-strength=%.2f", p->rc.aqStrength);
-    if (p->rc.aqMode == X265_AQ_VARIANCE_AUTO_MIN_BIASED || p->rc.aqMode == X265_AQ_VARIANCE_BIASED || p->rc.aqMode == X265_AQ_EDGE_BIASED || p->rc.aqMode == X265_AQ_AUTO_VARIANCE_BIASED)
-    {
-        s += snprintf(s, bufSize - (s - buf), " aq-bias-strength=%.2f", p->rc.aqBiasStrength);
-    }
-    BOOL(p->bAQMotion, "aq-motion");
     s += snprintf(s, bufSize - (s - buf), " cb,crqpoffs=%d,%d", p->cbQpOffset, p->crQpOffset);
 
     s += snprintf(s, bufSize - (s - buf), " rd=%d", p->rdLevel);
@@ -3236,6 +3245,7 @@ void x265_copy_params(x265_param* dst, x265_param* src)
 
     dst->rc.rateControlMode = src->rc.rateControlMode;
     dst->rc.qp = src->rc.qp;
+    dst->rc.vqp = src->rc.vqp;
     dst->rc.bitrate = src->rc.bitrate;
     dst->rc.qCompress = src->rc.qCompress;
     dst->rc.ipFactor = src->rc.ipFactor;

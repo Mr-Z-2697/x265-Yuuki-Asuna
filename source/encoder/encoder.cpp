@@ -3863,7 +3863,7 @@ void Encoder::configureZone(x265_param *p, x265_param *zone)
             p->rc.bitrate = zone->rc.bitrate;
         if (m_param->rc.rateControlMode == X265_RC_CRF)
             p->rc.rfConstant = zone->rc.rfConstant;
-        if (m_param->rc.rateControlMode == X265_RC_CQP)
+        if (m_param->rc.rateControlMode == X265_RC_CQP && !m_param->rc.vqp)
         {
             p->rc.qp = zone->rc.qp;
             p->rc.aqMode = X265_AQ_NONE;
@@ -4084,7 +4084,7 @@ void Encoder::configure(x265_param *p)
         p->bEnablePsnr = 0;
     }
 
-    if (p->rc.rateControlMode == X265_RC_CQP)
+    if (p->rc.rateControlMode == X265_RC_CQP && !p->rc.vqp)
     {
         p->rc.aqMode = X265_AQ_NONE;
         p->rc.hevcAq = 0;
