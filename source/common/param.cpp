@@ -2586,6 +2586,29 @@ char *x265_param2string(x265_param* p, int padx, int pady)
     if (!p->rc.hevcAq)
     {
         s += snprintf(s, bufSize - (s - buf), " aq-mode=%d", p->rc.aqMode);
+        if ((p->rc.aqMode == X265_AQ_VARIANCE ||
+            p->rc.aqMode == X265_AQ_VARIANCE_BIASED ||
+            p->rc.aqMode == X265_AQ_VARIANCE_AUTO_MIN ||
+            p->rc.aqMode == X265_AQ_VARIANCE_AUTO_MIN_BIASED) &&
+        p->rc.aqStrength)
+        {
+            if (p->rc.aq1const != 14.427f && !(p->rc.qgSize == 8 && p->rc.aq1const == 11.427f))
+                s += snprintf(s, bufSize - (s - buf), " aq1const=%.3f", p->rc.aq1const);
+        }
+        if ((p->rc.aqMode == X265_AQ_AUTO_VARIANCE ||
+            p->rc.aqMode == X265_AQ_AUTO_VARIANCE_BIASED ||
+            p->rc.aqMode == X265_AQ_EDGE ||
+            p->rc.aqMode == X265_AQ_EDGE_BIASED ||
+            p->rc.aqMode == X265_AQ_VARIANCE_BIASED ||
+            p->rc.aqMode == X265_AQ_VARIANCE_AUTO_MIN ||
+            p->rc.aqMode == X265_AQ_VARIANCE_AUTO_MIN_BIASED) &&
+        p->rc.aqStrength)
+        {
+            if (p->rc.aq2const != 11.f && !(p->rc.qgSize == 8 && p->rc.aq2const == 8.f))
+                s += snprintf(s, bufSize - (s - buf), " aq2const=%.3f", p->rc.aq2const);
+            if (p->rc.aq2pow != 0.1f)
+                s += snprintf(s, bufSize - (s - buf), " aq2pow=%.3f", p->rc.aq2pow);
+        }
     }
     else
     {
