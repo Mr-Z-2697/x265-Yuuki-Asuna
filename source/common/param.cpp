@@ -2729,16 +2729,19 @@ char *x265_param2string(x265_param* p, int padx, int pady)
         BOOL(p->bDistributeModeAnalysis, "pmode");
     if (p->bDistributeMotionEstimation)
         BOOL(p->bDistributeMotionEstimation, "pme");
-    BOOL(p->bEnablePsnr, "psnr");
-    BOOL(p->bEnableSsim, "ssim");
+    // BOOL(p->bEnablePsnr, "psnr"); // pure (rudimentary) user info.
+    // BOOL(p->bEnableSsim, "ssim"); // not related to any bitstream change.
     s += snprintf(s, bufSize - (s - buf), " log-level=%d", p->logLevel);
     if (strlen(p->csvfn))
         s += snprintf(s, bufSize - (s - buf), " csv csv-log-level=%d", p->csvLogLevel);
-    s += snprintf(s, bufSize - (s - buf), " bitdepth=%d", p->internalBitDepth);
-    s += snprintf(s, bufSize - (s - buf), " input-csp=%d", p->internalCsp);
-    s += snprintf(s, bufSize - (s - buf), " fps=%u/%u", p->fpsNum, p->fpsDenom);
-    s += snprintf(s, bufSize - (s - buf), " input-res=%dx%d", p->sourceWidth - padx, p->sourceHeight - pady);
-    s += snprintf(s, bufSize - (s - buf), " interlace=%d", p->interlaceMode);
+    // s += snprintf(s, bufSize - (s - buf), " bitdepth=%d", p->internalBitDepth); // assuming always the same as output.
+    // s += snprintf(s, bufSize - (s - buf), " input-csp=%d", p->internalCsp); // ditto.
+    if (!p->bEmitVUITimingInfo)
+        s += snprintf(s, bufSize - (s - buf), " fps=%u/%u", p->fpsNum, p->fpsDenom);
+    if (p->vui.bEnableOverscanInfoPresentFlag || p->vui.bEnableDefaultDisplayWindowFlag || p->confWinRightOffset || p->confWinBottomOffset)
+        s += snprintf(s, bufSize - (s - buf), " input-res=%dx%d", p->sourceWidth - padx, p->sourceHeight - pady);
+    if (p->interlaceMode)
+        s += snprintf(s, bufSize - (s - buf), " interlace=%d", p->interlaceMode);
     if (p->interlaceMode)
         BOOL(p->bField, "field");
     if (p->chunkStart)
@@ -2758,7 +2761,8 @@ char *x265_param2string(x265_param* p, int padx, int pady)
     // BOOL(p->bEmitInfoSEI, "info"); // aren't we kooing at it already?
     s += snprintf(s, bufSize - (s - buf), " hash=%d", p->decodedPictureHashSEI);
     BOOL(p->bEnableTemporalSubLayers, "temporal-layers");
-    BOOL(p->bEnableHRDConcatFlag, "splice");
+    if (p->bEmitHRDSEI)
+        BOOL(p->bEnableHRDConcatFlag, "hrd-concat");
     BOOL(p->bIntraRefresh, "intra-refresh");
     BOOL(p->bEnableSignHiding, "signhide");
     BOOL(p->bEnableTransformSkip, "tskip");
@@ -2816,7 +2820,8 @@ char *x265_param2string(x265_param* p, int padx, int pady)
         s += snprintf(s, bufSize - (s - buf), " max-luma=%hu", p->maxLuma);
     // s += snprintf(s, bufSize - (s - buf), " log2-max-poc-lsb=%d", p->log2MaxPocLsb); // doesn't matter at all (save for more/less bits to represent POC)
     BOOL(p->bEmitVUITimingInfo, "vui-timing-info");
-    BOOL(p->bEmitVUIHRDInfo, "vui-hrd-info");
+    if (p->bEmitVUITimingInfo && p->bEmitHRDSEI)
+        BOOL(p->bEmitVUIHRDInfo, "vui-hrd-info");
     BOOL(p->bOptQpPPS, "opt-qp-pps");
     BOOL(p->bOptRefListLengthPPS, "opt-ref-list-length-pps");
     if (p->rc.bStatRead || p->rc.bStatWrite)
