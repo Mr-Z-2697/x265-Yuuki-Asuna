@@ -403,7 +403,6 @@ uint32_t cpu_detect(bool)
 
 uint32_t cpu_detect(bool)
 {
-    (void)benableavx512;
     int flags = 0;
 
 #ifdef ENABLE_ASSEMBLY
@@ -418,7 +417,6 @@ uint32_t cpu_detect(bool)
 
 uint32_t cpu_detect(bool)
 {
-    (void)benableavx512;
     uint32_t flags = 0;
 
 #ifdef ENABLE_ASSEMBLY

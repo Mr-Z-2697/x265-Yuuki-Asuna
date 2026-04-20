@@ -151,8 +151,9 @@ void x265_param_default(x265_param* param)
     param->frameNumThreads = 0;
 
     param->logLevel = X265_LOG_INFO;
-    param->logfn = NULL;
+    param->logfn[0] = 0;
     param->logfLevel = X265_LOG_INFO;
+    param->pgfn[0] = 0;
     param->csvLogLevel = 0;
     param->csvfn[0] = 0;
     param->rc.lambdaFileName[0] = 0;
@@ -1612,7 +1613,7 @@ int x265_param_parse(x265_param* p, const char* name, const char* value)
         OPT("max-luma") p->maxLuma = (uint16_t)atoi(value);
         OPT("uhd-bd") p->uhdBluray = atobool(value);
         OPT("opts") p->opts = atoi(value);
-        OPT("log-file") p->logfn = strdup(value);
+        OPT("log-file") snprintf(p->logfn, X265_MAX_STRING_SIZE, "%s", value);
         OPT("log-file-level")
         {
             p->logfLevel = atoi(value);
@@ -1622,7 +1623,7 @@ int x265_param_parse(x265_param* p, const char* name, const char* value)
                 p->logfLevel = parseName(value, logLevelNames, bError) - 1;
             }
         }
-        OPT("progress-file") p->pgfn = strdup(value);
+        OPT("progress-file") snprintf(p->pgfn, X265_MAX_STRING_SIZE, "%s", value);
         OPT("stylish") p->bStylish = atobool(value);
         OPT("csv") snprintf(p->csvfn, X265_MAX_STRING_SIZE, "%s", value);
         OPT("csv-log-level") p->csvLogLevel = atoi(value);
@@ -2519,7 +2520,7 @@ void x265_print_params(x265_param* param)
     TOOLOPT(param->numViews > 1, "multi-view");
 #endif
 #if ENABLE_HDR10_PLUS
-    TOOLOPT(param->toneMapFile != NULL, "dhdr10-info");
+    TOOLOPT(strlen(param->toneMapFile), "dhdr10-info");
 #endif
     if(param->bEnableTemporalFilter)
         TOOLOPT(param->bEnableTemporalFilter, "mcstf");
@@ -3382,9 +3383,11 @@ void x265_copy_params(x265_param* dst, x265_param* src)
 
     if (strlen(src->videoSignalTypePreset)) snprintf(dst->videoSignalTypePreset, X265_MAX_STRING_SIZE, "%s", src->videoSignalTypePreset);
     else dst->videoSignalTypePreset[0] = 0;
-    dst->logfn = src->logfn;
+    if (strlen(src->logfn)) snprintf(dst->logfn, X265_MAX_STRING_SIZE, "%s", src->logfn);
+    else dst->logfn[0] = 0;
     dst->logfLevel = src->logfLevel;
-    dst->pgfn = src->pgfn;
+    if (strlen(src->pgfn)) snprintf(dst->pgfn, X265_MAX_STRING_SIZE, "%s", src->pgfn);
+    else dst->pgfn[0] = 0;
     dst->opts = src->opts;
 
 #ifdef SVT_HEVC

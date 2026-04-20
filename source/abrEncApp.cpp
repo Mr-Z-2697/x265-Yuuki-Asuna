@@ -254,6 +254,7 @@ namespace X265_NS {
                 }
             }
         }
+        m_param->isAbrLadderEnable = m_parent->m_numEncodes > 1;
 
 #ifdef ENABLE_ZIMG
         for (auto &&i : m_cliopt.filters)
@@ -269,7 +270,6 @@ namespace X265_NS {
         /* This allows muxers to modify bitstream format */
         m_cliopt.output->setParam(m_param);
 
-        m_param->isAbrLadderEnable = m_parent->m_numEncodes > 1;
         if (m_cliopt.zoneFile)
         {
             if (!m_cliopt.parseZoneFile())
