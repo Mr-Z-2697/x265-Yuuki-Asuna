@@ -415,4 +415,11 @@ void Lowres::init(PicYuv *origPic, int poc)
             quarterSampleLowResStrideY,
             widthFullRes / 4, heightFullRes / 4);
     }
+    if (origPic->m_param->bAQMotion && !origPic->m_param->rc.aqMode && !origPic->m_param->rc.cuTree && !origPic->m_param->rc.hevcAq)
+    {
+        int cuCount = maxBlocksInRow * maxBlocksInCol;
+        int cuCountFullRes = (origPic->m_param->rc.qgSize > 8) ? cuCount : cuCount << 2;
+        memset(qpAqOffset, 0, sizeof(double) * cuCountFullRes);
+        memset(qpAqMotionOffset, 0, sizeof(double) * cuCountFullRes);
+    }
 }
