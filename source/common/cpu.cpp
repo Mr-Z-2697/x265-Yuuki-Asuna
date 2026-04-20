@@ -403,7 +403,6 @@ uint32_t cpu_detect(bool)
 
 uint32_t cpu_detect(bool)
 {
-    (void)benableavx512;
     int flags = 0;
 
 #ifdef ENABLE_ASSEMBLY
@@ -416,9 +415,8 @@ uint32_t cpu_detect(bool)
 #elif X265_ARCH_RISCV64
 #include "riscv64/cpu.h"
 
-uint32_t cpu_detect(bool benableavx512)
+uint32_t cpu_detect(bool)
 {
-    (void)benableavx512;
     uint32_t flags = 0;
 
 #ifdef ENABLE_ASSEMBLY
