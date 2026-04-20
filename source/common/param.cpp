@@ -2794,14 +2794,17 @@ char *x265_param2string(x265_param* p, int padx, int pady)
         s += snprintf(s, bufSize - (s - buf), " analysis-save");
     if (strlen(p->analysisLoad))
         s += snprintf(s, bufSize - (s - buf), " analysis-load");
-    s += snprintf(s, bufSize - (s - buf), " analysis-reuse-level=%d", p->analysisReuseLevel);
-    s += snprintf(s, bufSize - (s - buf), " analysis-save-reuse-level=%d", p->analysisSaveReuseLevel);
-    s += snprintf(s, bufSize - (s - buf), " analysis-load-reuse-level=%d", p->analysisLoadReuseLevel);
-    s += snprintf(s, bufSize - (s - buf), " scale-factor=%d", p->scaleFactor);
-    s += snprintf(s, bufSize - (s - buf), " refine-intra=%d", p->intraRefine);
-    s += snprintf(s, bufSize - (s - buf), " refine-inter=%d", p->interRefine);
-    s += snprintf(s, bufSize - (s - buf), " refine-mv=%d", p->mvRefine);
-    s += snprintf(s, bufSize - (s - buf), " refine-ctu-distortion=%d", p->ctuDistortionRefine);
+    if (strlen(p->analysisSave) || strlen(p->analysisLoad))
+    {
+        s += snprintf(s, bufSize - (s - buf), " analysis-reuse-level=%d", p->analysisReuseLevel);
+        s += snprintf(s, bufSize - (s - buf), " analysis-save-reuse-level=%d", p->analysisSaveReuseLevel);
+        s += snprintf(s, bufSize - (s - buf), " analysis-load-reuse-level=%d", p->analysisLoadReuseLevel);
+        s += snprintf(s, bufSize - (s - buf), " scale-factor=%d", p->scaleFactor);
+        s += snprintf(s, bufSize - (s - buf), " refine-intra=%d", p->intraRefine);
+        s += snprintf(s, bufSize - (s - buf), " refine-inter=%d", p->interRefine);
+        s += snprintf(s, bufSize - (s - buf), " refine-mv=%d", p->mvRefine);
+        s += snprintf(s, bufSize - (s - buf), " refine-ctu-distortion=%d", p->ctuDistortionRefine);
+    }
     s += snprintf(s, bufSize - (s - buf), " ctu-info=%d", p->bCTUInfo);
     BOOL(p->bLowPassDct, "lowpass-dct");
     s += snprintf(s, bufSize - (s - buf), " refine-analysis-type=%d", p->bAnalysisType);
@@ -2809,13 +2812,17 @@ char *x265_param2string(x265_param* p, int padx, int pady)
     s += snprintf(s, bufSize - (s - buf), " max-ausize-factor=%.1f", p->maxAUSizeFactor);
     BOOL(p->bDynamicRefine, "dynamic-refine");
     BOOL(p->bSingleSeiNal, "single-sei");
-    BOOL(p->bEnableSvtHevc, "svt");
-    s += snprintf(s, bufSize - (s - buf), " qp-adaptation-range=%.2f", p->rc.qpAdaptationRange);
+    if (p->bEnableSvtHevc)
+        BOOL(p->bEnableSvtHevc, "svt");
+    if (p->rc.hevcAq)
+        s += snprintf(s, bufSize - (s - buf), " qp-adaptation-range=%.2f", p->rc.qpAdaptationRange);
     s += snprintf(s, bufSize - (s - buf), " scenecut-aware-qp=%d", p->bEnableSceneCutAwareQp);
     if (p->bEnableSceneCutAwareQp)
         s += snprintf(s, bufSize - (s - buf), " fwd-scenecut-window=%d fwd-ref-qp-delta=%f fwd-nonref-qp-delta=%f bwd-scenecut-window=%d bwd-ref-qp-delta=%f bwd-nonref-qp-delta=%f", p->fwdMaxScenecutWindow, p->fwdRefQpDelta[0], p->fwdNonRefQpDelta[0], p->bwdMaxScenecutWindow, p->bwdRefQpDelta[0], p->bwdNonRefQpDelta[0]);
-    s += snprintf(s, bufSize - (s - buf), " conformance-window-offsets=right:%d,bottom:%d", p->confWinRightOffset, p->confWinBottomOffset);
-    s += snprintf(s, bufSize - (s - buf), " decoder-max-rate=%d", p->decoderVbvMaxRate);
+    if (p->confWinRightOffset || p->confWinBottomOffset)
+        s += snprintf(s, bufSize - (s - buf), " conformance-window-offsets=right:%d,bottom:%d", p->confWinRightOffset, p->confWinBottomOffset);
+    if (p->decoderVbvMaxRate)
+        s += snprintf(s, bufSize - (s - buf), " decoder-max-rate=%d", p->decoderVbvMaxRate);
     BOOL(p->bliveVBV2pass, "vbv-live-multi-pass");
     if (p->filmGrain)
         s += snprintf(s, bufSize - (s - buf), " film-grain=%s", p->filmGrain); // Film grain characteristics model filename
