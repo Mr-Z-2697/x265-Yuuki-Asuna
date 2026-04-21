@@ -2556,25 +2556,24 @@ char *x265_param2string(x265_param* p, int padx, int pady)
     if (p->rc.rateControlMode == X265_RC_ABR || p->rc.rateControlMode == X265_RC_CRF)
     {
         if (p->rc.rateControlMode == X265_RC_CRF)
-            s += snprintf(s, bufSize - (s - buf), " crf=%.4f", p->rc.rfConstant);
+            s += snprintf(s, bufSize - (s - buf), " crf=%.2f", p->rc.rfConstant);
         else
             s += snprintf(s, bufSize - (s - buf), " bitrate=%d", p->rc.bitrate);
         s += snprintf(s, bufSize - (s - buf), " qcomp=%.2f qpstep=%d", p->rc.qCompress, p->rc.qpStep);
-        s += snprintf(s, bufSize - (s - buf), " stats-write=%d", p->rc.bStatWrite);
-        s += snprintf(s, bufSize - (s - buf), " stats-read=%d", p->rc.bStatRead);
+        s += snprintf(s, bufSize - (s - buf), " stats-write,read=%d,%d", p->rc.bStatWrite, p->rc.bStatRead);
         if (p->rc.bStatRead)
-            s += snprintf(s, bufSize - (s - buf), " cplxblur=%.1f qblur=%.1f",
+            s += snprintf(s, bufSize - (s - buf), " cplx,qblur=%.1f,%.1f",
             p->rc.complexityBlur, p->rc.qblur);
         if (p->rc.bStatWrite && !p->rc.bStatRead)
             BOOL(p->rc.bEnableSlowFirstPass, "slow-firstpass");
         if (p->rc.vbvBufferSize)
         {
-            s += snprintf(s, bufSize - (s - buf), " vbv-maxrate=%d vbv-bufsize=%d vbv-init=%.1f min-vbv-fullness=%.1f max-vbv-fullness=%.1f",
+            s += snprintf(s, bufSize - (s - buf), " vbv-maxrate=%d vbv-bufsize,init=%d,%.1f min,max-vbv-fullness=%.1f,%.1f",
                 p->rc.vbvMaxBitrate, p->rc.vbvBufferSize, p->rc.vbvBufferInit, p->minVbvFullness, p->maxVbvFullness);
             if (p->vbvBufferEnd)
                 s += snprintf(s, bufSize - (s - buf), " vbv-end=%.1f vbv-end-fr-adj=%.1f", p->vbvBufferEnd, p->vbvEndFrameAdjust);
             if (p->rc.rateControlMode == X265_RC_CRF)
-                s += snprintf(s, bufSize - (s - buf), " crf-max=%.1f crf-min=%.1f", p->rc.rfConstantMax, p->rc.rfConstantMin);
+                s += snprintf(s, bufSize - (s - buf), " crf-max,min=%.1f,%.1f", p->rc.rfConstantMax, p->rc.rfConstantMin);
         }
     }
     else if (p->rc.rateControlMode == X265_RC_CQP)
@@ -2621,13 +2620,11 @@ char *x265_param2string(x265_param* p, int padx, int pady)
         s += snprintf(s, bufSize - (s - buf), " aq-bias-strength=%.2f", p->rc.aqBiasStrength);
     }
     BOOL(p->bAQMotion, "aq-motion");
-    s += snprintf(s, bufSize - (s - buf), " cbqpoffs=%d", p->cbQpOffset);
-    s += snprintf(s, bufSize - (s - buf), " crqpoffs=%d", p->crQpOffset);
+    s += snprintf(s, bufSize - (s - buf), " cb,crqpoffs=%d,%d", p->cbQpOffset, p->crQpOffset);
 
     s += snprintf(s, bufSize - (s - buf), " rd=%d", p->rdLevel);
     s += snprintf(s, bufSize - (s - buf), " rdoq-level=%d", p->rdoqLevel);
-    s += snprintf(s, bufSize - (s - buf), " psy-rd=%.2f", p->psyRd);
-    s += snprintf(s, bufSize - (s - buf), " psy-rdoq=%.2f", p->psyRdoq);
+    s += snprintf(s, bufSize - (s - buf), " psy-rd,rdoq=%.2f,%.2f", p->psyRd, p->psyRdoq);
 
     BOOL(p->bEnableLoopFilter, "deblock");
     if (p->bEnableLoopFilter)
@@ -2703,18 +2700,16 @@ char *x265_param2string(x265_param* p, int padx, int pady)
     s += snprintf(s, bufSize - (s - buf), " frame-threads=%d", p->frameNumThreads);
     if (strlen(p->numaPools))
         s += snprintf(s, bufSize - (s - buf), " numa-pools=%s", p->numaPools);
-    s += snprintf(s, bufSize - (s - buf), " nr-intra=%d", p->noiseReductionIntra);
-    s += snprintf(s, bufSize - (s - buf), " nr-inter=%d", p->noiseReductionInter);
+    s += snprintf(s, bufSize - (s - buf), " nr-intra,inter=%d,%d", p->noiseReductionIntra, p->noiseReductionInter);
     BOOL(p->bEnableConstrainedIntra, "constrained-intra");
     BOOL(p->bEnableStrongIntraSmoothing, "strong-intra-smoothing");
     BOOL(p->bEnableFastIntra, "fast-intra");
 
     s += snprintf(s, bufSize - (s - buf), " max-tu-size=%d", p->maxTUSize);
-    s += snprintf(s, bufSize - (s - buf), " tu-inter-depth=%d", p->tuQTMaxInterDepth);
-    s += snprintf(s, bufSize - (s - buf), " tu-intra-depth=%d", p->tuQTMaxIntraDepth);
+    s += snprintf(s, bufSize - (s - buf), " tu-inter,intra-depth=%d,%d", p->tuQTMaxInterDepth, p->tuQTMaxIntraDepth);
     s += snprintf(s, bufSize - (s - buf), " limit-tu=%d", p->limitTU);
 
-    s += snprintf(s, bufSize - (s - buf), " qpmax=%d qpmin=%d", p->rc.qpMax, p->rc.qpMin);
+    s += snprintf(s, bufSize - (s - buf), " qpmax,min=%d,%d", p->rc.qpMax, p->rc.qpMin);
     BOOL(p->rc.bEnableGrain, "rc-grain");
     BOOL(p->bSsimRd, "ssim-rd");
     s += snprintf(s, bufSize - (s - buf), " slices=%d", p->maxSlices);
