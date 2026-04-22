@@ -568,8 +568,8 @@ bool RateControl::init(const SPS& sps)
                     }
                     if (m_param->rc.cuTree)
                     {
-                    m_cuTreeStats.srcDim[0] = i;
-                    m_cuTreeStats.srcDim[1] = j;
+                        m_cuTreeStats.srcDim[0] = i;
+                        m_cuTreeStats.srcDim[1] = j;
                     }
                     resFactor = (double)m_param->sourceWidth * m_param->sourceHeight / (i*j);
                     /* Change in bits relative to resolution isn't quite linear on typical sources,

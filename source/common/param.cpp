@@ -2729,11 +2729,12 @@ char *x265_param2string(x265_param* p, int padx, int pady)
     s += snprintf(s, bufSize - (s - buf), " log-level=%d", p->logLevel);
     if (strlen(p->csvfn))
         s += snprintf(s, bufSize - (s - buf), " csv csv-log-level=%d", p->csvLogLevel);
-    // s += snprintf(s, bufSize - (s - buf), " bitdepth=%d", p->internalBitDepth); // assuming always the same as output.
+    if (p->rc.bStatWrite)
+        s += snprintf(s, bufSize - (s - buf), " bitdepth=%d", p->internalBitDepth); // assuming always the same as output.
     // s += snprintf(s, bufSize - (s - buf), " input-csp=%d", p->internalCsp); // ditto.
-    if (!p->bEmitVUITimingInfo)
+    if (p->rc.bStatWrite || !p->bEmitVUITimingInfo)
         s += snprintf(s, bufSize - (s - buf), " fps=%u/%u", p->fpsNum, p->fpsDenom);
-    if (p->vui.bEnableOverscanInfoPresentFlag || p->vui.bEnableDefaultDisplayWindowFlag || p->confWinRightOffset || p->confWinBottomOffset)
+    if (p->rc.bStatWrite || p->vui.bEnableOverscanInfoPresentFlag || p->vui.bEnableDefaultDisplayWindowFlag || p->confWinRightOffset || p->confWinBottomOffset)
         s += snprintf(s, bufSize - (s - buf), " input-res=%dx%d", p->sourceWidth - padx, p->sourceHeight - pady);
     if (p->interlaceMode)
         s += snprintf(s, bufSize - (s - buf), " interlace=%d", p->interlaceMode);
