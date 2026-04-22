@@ -2559,7 +2559,9 @@ char *x265_param2string(x265_param* p, int padx, int pady)
             s += snprintf(s, bufSize - (s - buf), " crf=%.2f", p->rc.rfConstant);
         else
             s += snprintf(s, bufSize - (s - buf), " bitrate=%d", p->rc.bitrate);
-        s += snprintf(s, bufSize - (s - buf), " qcomp=%.2f qpstep=%d", p->rc.qCompress, p->rc.qpStep);
+        s += snprintf(s, bufSize - (s - buf), " qcomp=%.2f", p->rc.qCompress);
+        if (p->rc.rateControlMode == X265_RC_ABR || p->rc.vbvBufferSize)
+            s += snprintf(s, bufSize - (s - buf), " qpstep=%d", p->rc.qpStep);
         s += snprintf(s, bufSize - (s - buf), " stats-write,read=%d,%d", p->rc.bStatWrite, p->rc.bStatRead);
         if (p->rc.bStatRead)
             s += snprintf(s, bufSize - (s - buf), " cplx,qblur=%.1f,%.1f",
@@ -2582,6 +2584,7 @@ char *x265_param2string(x265_param* p, int padx, int pady)
     BOOL(p->bLossless, "lossless");
     BOOL(p->bCULossless, "cu-lossless");
 
+    BOOL(p->rc.cuTree, "cutree");
     if (!p->rc.hevcAq)
     {
         s += snprintf(s, bufSize - (s - buf), " aq-mode=%d", p->rc.aqMode);
@@ -2677,7 +2680,6 @@ char *x265_param2string(x265_param* p, int padx, int pady)
     BOOL(p->recursionSkipMode, "rskip");
     if (p->recursionSkipMode == EDGE_BASED_RSKIP)
         s += snprintf(s, bufSize - (s - buf), " rskip-edge-threshold=%f", p->edgeVarThreshold);
-    BOOL(p->rc.cuTree, "cutree");
     BOOL(p->bEnableRectInter, "rect");
     BOOL(p->bEnableAMP, "amp");
     s += snprintf(s, bufSize - (s - buf), " scenecut=%d", p->scenecutThreshold);
@@ -2691,13 +2693,16 @@ char *x265_param2string(x265_param* p, int padx, int pady)
     BOOL(p->bOpenGOP, "open-gop");
     if (!(p->rc.rateControlMode == X265_RC_CQP && p->rc.qp == 0))
     {
-        s += snprintf(s, bufSize - (s - buf), " ipratio=%.2f", p->rc.ipFactor);
         if (p->bframes)
-            s += snprintf(s, bufSize - (s - buf), " pbratio=%.2f", p->rc.pbFactor);
+            s += snprintf(s, bufSize - (s - buf), " ip,pbratio=%.2f,%.2f", p->rc.ipFactor, p->rc.pbFactor);
+        else
+            s += snprintf(s, bufSize - (s - buf), " ipratio=%.2f", p->rc.ipFactor);
     }
     BOOL(p->bEnableWavefront, "wpp");
     s += snprintf(s, bufSize - (s - buf), " cpuid=%d", p->cpuid);
     s += snprintf(s, bufSize - (s - buf), " frame-threads=%d", p->frameNumThreads);
+    s += snprintf(s, bufSize - (s - buf), " slices=%d", p->maxSlices);
+    s += snprintf(s, bufSize - (s - buf), " lookahead-slices=%d", p->lookaheadSlices);
     if (strlen(p->numaPools))
         s += snprintf(s, bufSize - (s - buf), " numa-pools=%s", p->numaPools);
     s += snprintf(s, bufSize - (s - buf), " nr-intra,inter=%d,%d", p->noiseReductionIntra, p->noiseReductionInter);
@@ -2712,8 +2717,6 @@ char *x265_param2string(x265_param* p, int padx, int pady)
     s += snprintf(s, bufSize - (s - buf), " qpmax,min=%d,%d", p->rc.qpMax, p->rc.qpMin);
     BOOL(p->rc.bEnableGrain, "rc-grain");
     BOOL(p->bSsimRd, "ssim-rd");
-    s += snprintf(s, bufSize - (s - buf), " slices=%d", p->maxSlices);
-    s += snprintf(s, bufSize - (s - buf), " lookahead-slices=%d", p->lookaheadSlices);
 
     s += snprintf(s, bufSize - (s - buf), " -----");
 
@@ -2756,7 +2759,8 @@ char *x265_param2string(x265_param* p, int padx, int pady)
     BOOL(p->bEmitHRDSEI, "hrd");
     // BOOL(p->bEmitInfoSEI, "info"); // aren't we looking at it already?
     s += snprintf(s, bufSize - (s - buf), " hash=%d", p->decodedPictureHashSEI);
-    BOOL(p->bEnableTemporalSubLayers, "temporal-layers");
+    if (p->bEnableTemporalSubLayers)
+        BOOL(p->bEnableTemporalSubLayers, "temporal-layers"); // can be identified by TSA NALU's, or the lack thereof.
     if (p->bEmitHRDSEI)
         BOOL(p->bEnableHRDConcatFlag, "hrd-concat");
     BOOL(p->bIntraRefresh, "intra-refresh");
@@ -2766,9 +2770,11 @@ char *x265_param2string(x265_param* p, int padx, int pady)
         BOOL(p->bEnableTSkipFast, "tskip-fast");
     s += snprintf(s, bufSize - (s - buf), " max-merge=%d", p->maxNumMergeCand);
     BOOL(p->bEnableTemporalMvp, "temporal-mvp");
-    BOOL(p->bEnableFrameDuplication, "frame-dup");
-    if(p->bEnableFrameDuplication)
+    if (p->rc.bStatWrite || p->bEnableFrameDuplication)
+    {
+        BOOL(p->bEnableFrameDuplication, "frame-dup");
         s += snprintf(s, bufSize - (s - buf), " dup-threshold=%d", p->dupThreshold);
+    }
     BOOL(p->bSourceReferenceEstimation, "analyze-src-pics");
 
     BOOL(p->bEnableSplitRdSkip, "splitrd-skip");
@@ -2803,17 +2809,22 @@ char *x265_param2string(x265_param* p, int padx, int pady)
     s += snprintf(s, bufSize - (s - buf), " colormatrix=%d", p->vui.matrixCoeffs);
     s += snprintf(s, bufSize - (s - buf), " chromaloc=%d", p->vui.bEnableChromaLocInfoPresentFlag);
     if (p->vui.bEnableChromaLocInfoPresentFlag)
-        s += snprintf(s, bufSize - (s - buf), " chromaloc-top=%d chromaloc-bottom=%d",
+        s += snprintf(s, bufSize - (s - buf), " chromaloc-tf,bf=%d,%d",
         p->vui.chromaSampleLocTypeTopField, p->vui.chromaSampleLocTypeBottomField);
     s += snprintf(s, bufSize - (s - buf), " display-window=%d", p->vui.bEnableDefaultDisplayWindowFlag);
     if (p->vui.bEnableDefaultDisplayWindowFlag)
         s += snprintf(s, bufSize - (s - buf), " left=%d top=%d right=%d bottom=%d",
         p->vui.defDispWinLeftOffset, p->vui.defDispWinTopOffset,
         p->vui.defDispWinRightOffset, p->vui.defDispWinBottomOffset);
-    if (p->minLuma != 0)
-        s += snprintf(s, bufSize - (s - buf), " min-luma=%hu", p->minLuma);
-    if (p->maxLuma != PIXEL_MAX)
-        s += snprintf(s, bufSize - (s - buf), " max-luma=%hu", p->maxLuma);
+    if (p->minLuma != 0 || p->maxLuma != PIXEL_MAX)
+    {
+        s += snprintf(s, bufSize - (s - buf), " luma=");
+        if (p->minLuma != 0)
+            s += snprintf(s, bufSize - (s - buf), "%hu", p->minLuma);
+        s += snprintf(s, bufSize - (s - buf), "-");
+        if (p->maxLuma != PIXEL_MAX)
+            s += snprintf(s, bufSize - (s - buf), "%hu", p->maxLuma);
+    }
     // s += snprintf(s, bufSize - (s - buf), " log2-max-poc-lsb=%d", p->log2MaxPocLsb); // doesn't matter at all (save for more/less bits to represent POC)
     BOOL(p->bEmitVUITimingInfo, "vui-timing-info");
     if (p->bEmitVUITimingInfo && p->bEmitHRDSEI)
