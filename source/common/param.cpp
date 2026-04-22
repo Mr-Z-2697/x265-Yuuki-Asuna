@@ -2751,10 +2751,10 @@ char *x265_param2string(x265_param* p, int padx, int pady)
     BOOL(p->bRepeatHeaders, "repeat-headers");
     BOOL(p->bAnnexB, "annexb");
     BOOL(p->bEnableAccessUnitDelimiters, "aud");
-    BOOL(p->bEnableEndOfBitstream, "eob");
-    BOOL(p->bEnableEndOfSequence, "eos");
+    // BOOL(p->bEnableEndOfBitstream, "eob"); // much less important than aud or hrd.
+    // BOOL(p->bEnableEndOfSequence, "eos"); // ditto.
     BOOL(p->bEmitHRDSEI, "hrd");
-    // BOOL(p->bEmitInfoSEI, "info"); // aren't we kooing at it already?
+    // BOOL(p->bEmitInfoSEI, "info"); // aren't we looking at it already?
     s += snprintf(s, bufSize - (s - buf), " hash=%d", p->decodedPictureHashSEI);
     BOOL(p->bEnableTemporalSubLayers, "temporal-layers");
     if (p->bEmitHRDSEI)
