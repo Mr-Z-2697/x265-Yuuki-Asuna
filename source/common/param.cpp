@@ -680,7 +680,9 @@ int x265_param_default_preset(x265_param* param, const char* preset, const char*
             param->lookaheadDepth=80;
             param->bOpenGOP=0;
             param->limitModes=0;
-            param->bframes=5;
+            param->bframes=3; /*Contrary to popular belief, people,
+                    (too many) bframes is not good for your anime, or else. (at least in x265:)
+                    https://i.imgur.com/7yxvMqr.jpg */
             param->rdLevel=6;
             param->rc.rfConstant=14;
         }
@@ -911,21 +913,17 @@ int x265_param_default_preset(x265_param* param, const char* preset, const char*
                     param->recursionSkipMode=0;
                     [[fallthrough]];
                 case 3:
-                    param->bEnableHME=1;
-                    param->hmeSearchMethod[0]=param->hmeSearchMethod[2]=X265_STAR_SEARCH;
-                    param->hmeSearchMethod[1]=X265_UMH_SEARCH;
-                    param->lookaheadSlices=0;
+                    /* UMH and STAR are similar in quality, but when merange is larger,
+                    UMH tends to be faster (or less slow) than STAR. */
+                    param->searchMethod = X265_UMH_SEARCH;
+                    param->searchRange = 92;
                     [[fallthrough]];
                 case 2:
-                    param->maxCUSize=64;
-                    param->rc.qgSize=64;
+                    param->lookaheadSlices = 0;
                     [[fallthrough]];
                 case 1:
                     param->tuQTMaxInterDepth=2;
                     param->tuQTMaxIntraDepth=3;
-                    param->bframes=3; /*Contrary to popular belief, people,
-                    (too many) bframes is not good for your anime.  (at least in x265:)
-                    https://i.imgur.com/7yxvMqr.jpg */
             }
         }
         else if (!strcmp(tune,"none"))
