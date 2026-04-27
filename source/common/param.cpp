@@ -2801,8 +2801,12 @@ char *x265_param2string(x265_param* p, int padx, int pady)
                 s += snprintf(s, bufSize - (s - buf), " bitrate-factor=%f", p->rc.zones[i].bitrateFactor);
         }
     }
-    BOOL(p->rc.bStrictCbr, "strict-cbr");
-    BOOL(p->rc.bEnableConstVbv, "const-vbv");
+    if (p->rc.vbvBufferSize)
+    {
+        if (p->rc.rateControlMode == X265_RC_ABR && p->rc.vbvMaxBitrate <= p->rc.bitrate)
+            BOOL(p->rc.bStrictCbr, "strict-cbr");
+        BOOL(p->rc.bEnableConstVbv, "const-vbv");
+    }
     s += snprintf(s, bufSize - (s - buf), " sar=%d", p->vui.aspectRatioIdc);
     if (p->vui.aspectRatioIdc == X265_EXTENDED_SAR)
         s += snprintf(s, bufSize - (s - buf), " sar-w:h=%d:%d", p->vui.sarWidth, p->vui.sarHeight);
