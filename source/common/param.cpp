@@ -1490,9 +1490,20 @@ int x265_param_parse(x265_param* p, const char* name, const char* value)
         {
             int len;
             if (3 == sscanf(c, "%d,%d,q=%d%n", &p->rc.zones[i].startFrame, &p->rc.zones[i].endFrame, &p->rc.zones[i].qp, &len))
+            {
                 p->rc.zones[i].bForceQp = 1;
+                p->rc.zones[i].bForceCrf = 0;
+            }
             else if (3 == sscanf(c, "%d,%d,b=%f%n", &p->rc.zones[i].startFrame, &p->rc.zones[i].endFrame, &p->rc.zones[i].bitrateFactor, &len))
+            {
                 p->rc.zones[i].bForceQp = 0;
+                p->rc.zones[i].bForceCrf = 0;
+            }
+            else if (3 == sscanf(c, "%d,%d,rf=%lf%n", &p->rc.zones[i].startFrame, &p->rc.zones[i].endFrame, &p->rc.zones[i].rfConstant, &len))
+            {
+                p->rc.zones[i].bForceQp = 0;
+                p->rc.zones[i].bForceCrf = 1;
+            }
             else
             {
                 bError = true;
@@ -2797,6 +2808,8 @@ char *x265_param2string(x265_param* p, int padx, int pady)
                  p->rc.zones[i].startFrame, p->rc.zones[i].endFrame);
             if (p->rc.zones[i].bForceQp)
                 s += snprintf(s, bufSize - (s - buf), " qp=%d", p->rc.zones[i].qp);
+            else if (p->rc.zones[i].bForceCrf)
+                s += snprintf(s, bufSize - (s - buf), " crf=%.2f", p->rc.zones[i].rfConstant);
             else
                 s += snprintf(s, bufSize - (s - buf), " bitrate-factor=%f", p->rc.zones[i].bitrateFactor);
         }
@@ -3302,7 +3315,9 @@ void x265_copy_params(x265_param* dst, x265_param* src)
             dst->rc.zones[i].startFrame = src->rc.zones[i].startFrame;
             dst->rc.zones[i].endFrame = src->rc.zones[i].endFrame;
             dst->rc.zones[i].bForceQp = src->rc.zones[i].bForceQp;
+            dst->rc.zones[i].bForceCrf = src->rc.zones[i].bForceCrf;
             dst->rc.zones[i].qp = src->rc.zones[i].qp;
+            dst->rc.zones[i].rfConstant = src->rc.zones[i].rfConstant;
             dst->rc.zones[i].bitrateFactor = src->rc.zones[i].bitrateFactor;
         }
     }
