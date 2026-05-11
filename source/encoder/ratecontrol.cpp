@@ -2322,6 +2322,12 @@ double RateControl::rateEstimateQscale(Frame* curFrame, RateControlEntry *rce)
             {
                 if (zone->bForceQp)
                     q = x265_qp2qScale(zone->qp);
+                else if (zone->bForceCrf)
+                {
+                    double baseCplx = m_ncu * (m_param->bframes ? 120 : 80);
+                    double mbtree_offset = m_param->rc.cuTree ? (1.0 - m_param->rc.qCompress) * 13.5 : 0;
+                    q = getQScale(rce, pow(baseCplx, 1.0 - m_qCompress) / x265_qp2qScale(zone->rfConstant + mbtree_offset));
+                }
                 else
                     q /= zone->bitrateFactor;
             }
@@ -2453,6 +2459,12 @@ double RateControl::rateEstimateQscale(Frame* curFrame, RateControlEntry *rce)
                 {
                     if (zone->bForceQp)
                         q = x265_qp2qScale(zone->qp);
+                    else if (zone->bForceCrf)
+                    {
+                        double baseCplx = m_ncu * (m_param->bframes ? 120 : 80);
+                        double mbtree_offset = m_param->rc.cuTree ? (1.0 - m_param->rc.qCompress) * 13.5 : 0;
+                        q = getQScale(rce, pow(baseCplx, 1.0 - m_qCompress) / x265_qp2qScale(zone->rfConstant + mbtree_offset));
+                    }
                     else
                         q /= zone->bitrateFactor;
                 }
@@ -2467,6 +2479,12 @@ double RateControl::rateEstimateQscale(Frame* curFrame, RateControlEntry *rce)
                 {
                     if (zone->bForceQp)
                         initialQScale = x265_qp2qScale(zone->qp);
+                    else if (zone->bForceCrf)
+                    {
+                        double baseCplx = m_ncu * (m_param->bframes ? 120 : 80);
+                        double mbtree_offset = m_param->rc.cuTree ? (1.0 - m_param->rc.qCompress) * 13.5 : 0;
+                        q = getQScale(rce, pow(baseCplx, 1.0 - m_qCompress) / x265_qp2qScale(zone->rfConstant + mbtree_offset));
+                    }
                     else
                         initialQScale /= zone->bitrateFactor;
                 }
