@@ -669,7 +669,7 @@ int x265_param_default_preset(x265_param* param, const char* preset, const char*
             param->rc.aqStrength=0.8;
             param->maxCUSize=32;
             param->rc.qCompress=0.7;
-            param->rc.pbFactor=1.2;
+            param->rc.pbFactor=1.0;
             param->bEnableSAO=0;
             param->bEnableRectInter=0;
             param->bEnableStrongIntraSmoothing=0;
