@@ -2616,6 +2616,7 @@ int Encoder::reconfigureParam(x265_param* encParam, x265_param* param)
         encParam->bEnableRectInter = param->bEnableRectInter;
         encParam->maxNumMergeCand = param->maxNumMergeCand;
         encParam->bIntraInBFrames = param->bIntraInBFrames;
+        encParam->bIntraInPFrames = param->bIntraInPFrames;
         if (strlen(param->scalingLists) && !strlen(encParam->scalingLists))
             snprintf(encParam->scalingLists, X265_MAX_STRING_SIZE, "%s", param->scalingLists);
 
@@ -3840,6 +3841,7 @@ void Encoder::configureZone(x265_param *p, x265_param *zone)
         p->bEnableRectInter = zone->bEnableRectInter;
         p->maxNumMergeCand = zone->maxNumMergeCand;
         p->bIntraInBFrames = zone->bIntraInBFrames;
+        p->bIntraInPFrames = zone->bIntraInPFrames;
         if (strlen(zone->scalingLists))
             snprintf(p->scalingLists, X265_MAX_STRING_SIZE, "%s", zone->scalingLists);
 
@@ -5002,7 +5004,7 @@ void Encoder::readAnalysisFile(x265_analysis_data* analysis, int curPoc, const x
         if (m_param->analysisLoadReuseLevel == 10)
         {
             numBuf++;
-            bIntraInInter = (analysis->sliceType == X265_TYPE_P || m_param->bIntraInBFrames);
+            bIntraInInter = ((analysis->sliceType == X265_TYPE_P && m_param->bIntraInPFrames) || (analysis->sliceType != X265_TYPE_P && m_param->bIntraInBFrames));
             if (bIntraInInter) numBuf++;
         }
         if (m_param->bAnalysisType == HEVC_INFO)
@@ -5375,7 +5377,7 @@ void Encoder::readAnalysisFile(x265_analysis_data* analysis, int curPoc, const x
         if (m_param->analysisLoadReuseLevel == 10)
         {
             numBuf++;
-            bIntraInInter = (analysis->sliceType == X265_TYPE_P || m_param->bIntraInBFrames);
+            bIntraInInter = ((analysis->sliceType == X265_TYPE_P && m_param->bIntraInPFrames) || (analysis->sliceType != X265_TYPE_P && m_param->bIntraInBFrames));
             if (bIntraInInter) numBuf++;
         }
 
@@ -6017,7 +6019,7 @@ void Encoder::writeAnalysisFile(x265_analysis_data* analysis, FrameData &curEncD
         }
         else
         {
-            bIntraInInter = (analysis->sliceType == X265_TYPE_P || m_param->bIntraInBFrames);
+            bIntraInInter = ((analysis->sliceType == X265_TYPE_P && m_param->bIntraInPFrames) || (analysis->sliceType != X265_TYPE_P && m_param->bIntraInBFrames));
             for (uint32_t cuAddr = 0; cuAddr < analysis->numCUsInFrame; cuAddr++)
             {
                 uint8_t depth = 0;
@@ -6294,6 +6296,7 @@ void Encoder::printReconfigureParams()
     TOOLCMP(oldParam->bEnableRectInter, newParam->bEnableRectInter, "rect=%d to %d\n");
     TOOLCMP(oldParam->maxNumMergeCand, newParam->maxNumMergeCand, "max-merge=%d to %d\n");
     TOOLCMP(oldParam->bIntraInBFrames, newParam->bIntraInBFrames, "b-intra=%d to %d\n");
+    TOOLCMP(oldParam->bIntraInPFrames, newParam->bIntraInPFrames, "p-intra=%d to %d\n");
     TOOLCMP(oldParam->scalingLists, newParam->scalingLists, "scalinglists=%s to %s\n");
     TOOLCMP(oldParam->rc.vbvMaxBitrate, newParam->rc.vbvMaxBitrate, "vbv-maxrate=%d to %d\n");
     TOOLCMP(oldParam->rc.vbvBufferSize, newParam->rc.vbvBufferSize, "vbv-bufsize=%d to %d\n");

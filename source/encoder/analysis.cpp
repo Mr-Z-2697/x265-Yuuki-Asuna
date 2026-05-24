@@ -431,7 +431,7 @@ Mode& Analysis::compressCTU(CUData& ctu, Frame& frame, const CUGeom& cuGeom, con
             for (int list = 0; list < m_slice->isInterB() + 1; list++)
                 memcpy(ctu.m_skipFlag[list], &m_frame->m_analysisData.modeFlag[list][posCTU], sizeof(uint8_t) * numPartition);
 
-            if ((m_slice->m_sliceType == P_SLICE || m_param->bIntraInBFrames) && !(m_param->bAnalysisType == AVC_INFO))
+            if (((m_slice->m_sliceType == P_SLICE && m_param->bIntraInPFrames) || (m_slice->m_sliceType == B_SLICE && m_param->bIntraInBFrames)) && !(m_param->bAnalysisType == AVC_INFO))
             {
                 x265_analysis_intra_data* intraDataCTU = m_frame->m_analysisData.intraData;
                 memcpy(ctu.m_lumaIntraDir, &intraDataCTU->modes[posCTU], sizeof(uint8_t) * numPartition);
@@ -465,7 +465,7 @@ Mode& Analysis::compressCTU(CUData& ctu, Frame& frame, const CUGeom& cuGeom, con
             memcpy(ctu.m_cuDepth, &interDataCTU->depth[posCTU], sizeof(uint8_t) * numPartition);
             memcpy(ctu.m_predMode, &interDataCTU->modes[posCTU], sizeof(uint8_t) * numPartition);
             memcpy(ctu.m_partSize, &interDataCTU->partSize[posCTU], sizeof(uint8_t) * numPartition);
-            if ((m_slice->m_sliceType == P_SLICE || m_param->bIntraInBFrames) && !(m_param->bAnalysisType == AVC_INFO))
+            if (((m_slice->m_sliceType == P_SLICE && m_param->bIntraInPFrames) || (m_slice->m_sliceType == B_SLICE && m_param->bIntraInBFrames)) && !(m_param->bAnalysisType == AVC_INFO))
             {
                 x265_analysis_intra_data* intraDataCTU = m_frame->m_analysisData.intraData;
                 memcpy(ctu.m_lumaIntraDir, &intraDataCTU->modes[posCTU], sizeof(uint8_t) * numPartition);
@@ -1278,7 +1278,7 @@ uint32_t Analysis::compressInterCU_dist(const CUData& parentCTU, const CUGeom& c
     if (mightNotSplit && depth >= minDepth)
     {
         int bTryAmp = m_slice->m_sps->maxAMPDepth > depth;
-        int bTryIntra = (m_slice->m_sliceType != B_SLICE || m_param->bIntraInBFrames) && (!m_param->limitReferences || splitIntra) && (cuGeom.log2CUSize != MAX_LOG2_CU_SIZE);
+        int bTryIntra = ((m_slice->m_sliceType != B_SLICE && m_param->bIntraInPFrames) || (m_slice->m_sliceType == B_SLICE && m_param->bIntraInBFrames)) && (!m_param->limitReferences || splitIntra) && (cuGeom.log2CUSize != MAX_LOG2_CU_SIZE);
 
         if (m_slice->m_pps->bUseDQP && depth <= m_slice->m_pps->maxCuDQPDepth && m_slice->m_pps->maxCuDQPDepth != 0)
             setLambdaFromQP(parentCTU, qp);
@@ -1924,7 +1924,7 @@ SplitData Analysis::compressInterCU_rd0_4(const CUData& parentCTU, const CUGeom&
                         }
                     }
                 }
-                bool bTryIntra = (m_slice->m_sliceType != B_SLICE || m_param->bIntraInBFrames) && cuGeom.log2CUSize != MAX_LOG2_CU_SIZE && !((m_param->bCTUInfo & 4) && bCtuInfoCheck);
+                bool bTryIntra = ((m_slice->m_sliceType != B_SLICE && m_param->bIntraInPFrames) || (m_slice->m_sliceType == B_SLICE && m_param->bIntraInBFrames)) && cuGeom.log2CUSize != MAX_LOG2_CU_SIZE && !((m_param->bCTUInfo & 4) && bCtuInfoCheck);
                 if (m_param->rdLevel >= 3)
                 {
                     /* Calculate RD cost of best inter option */
@@ -2738,7 +2738,7 @@ SplitData Analysis::compressInterCU_rd5_6(const CUData& parentCTU, const CUGeom&
                 }
 #endif
 
-                if ((m_slice->m_sliceType != B_SLICE || m_param->bIntraInBFrames) && (cuGeom.log2CUSize != MAX_LOG2_CU_SIZE) && !((m_param->bCTUInfo & 4) && bCtuInfoCheck))
+                if (((m_slice->m_sliceType != B_SLICE && m_param->bIntraInPFrames) || (m_slice->m_sliceType == B_SLICE && m_param->bIntraInBFrames)) && (cuGeom.log2CUSize != MAX_LOG2_CU_SIZE) && !((m_param->bCTUInfo & 4) && bCtuInfoCheck))
                 {
                     if (!m_param->limitReferences || splitIntra)
                     {
