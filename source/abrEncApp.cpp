@@ -442,7 +442,7 @@ namespace X265_NS {
         }
         else
         {
-            bool bIntraInInter = (src->sliceType == X265_TYPE_P || m_param->bIntraInBFrames);
+            bool bIntraInInter = ((src->sliceType == X265_TYPE_P && m_param->bIntraInPFrames) || (src->sliceType != X265_TYPE_P && m_param->bIntraInBFrames));
             int numDir = src->sliceType == X265_TYPE_P ? 1 : 2;
             memcpy(m_analysisInfo->wt, src->wt, sizeof(WeightParam) * 3 * numDir);
             if (m_param->analysisSaveReuseLevel < 2)
