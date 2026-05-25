@@ -1720,7 +1720,7 @@ void Search::checkIntraInInter(Mode& intraMode, const CUGeom& cuGeom)
     COPY4_IF_LT(bcost, cost, bmode, mode, bsad, sad, bbits, bits);
 
     bool allangs = true;
-    if (primitives.cu[sizeIdx].intra_pred_allangs)
+    if (primitives.cu[sizeIdx].intra_pred_allangs && !(m_param->limitIntraAngle & 0b10) && !((m_param->limitIntraAngle & 0b01) && tuSize > 8))
     {
         primitives.cu[sizeIdx].transpose(m_fencTransposed, fenc, scaleStride);
         primitives.cu[sizeIdx].intra_pred_allangs(m_intraPredAngs, intraNeighbourBuf[0], intraNeighbourBuf[1], (scaleTuSize <= 16)); 
@@ -1744,38 +1744,59 @@ void Search::checkIntraInInter(Mode& intraMode, const CUGeom& cuGeom)
         cost = m_rdCost.calcRdSADCost(sad, bits); \
     }
 
-    if (m_param->bEnableFastIntra)
+    if (m_param->bEnableFastIntra || m_param->limitIntraAngle)
     {
         int asad = 0;
         uint32_t lowmode, highmode, amode = 5, abits = 0;
         uint64_t acost = MAX_INT64;
 
-        /* pick the best angle, sampling at distance of 5 */
-        for (mode = 5; mode < 35; mode += 5)
+        if ((m_param->limitIntraAngle & 0b01) && tuSize > 8)
         {
-            TRY_ANGLE(mode);
-            COPY4_IF_LT(acost, cost, amode, mode, asad, sad, abits, bits);
+            TRY_ANGLE(26);
+            COPY4_IF_LT(acost, cost, amode, 26, asad, sad, abits, bits);
+            TRY_ANGLE(10);
+            COPY4_IF_LT(acost, cost, amode, 10, asad, sad, abits, bits);
+        }
+        else
+        {
+            int modeInit, modeStep;
+            if (m_param->limitIntraAngle & 0b10)
+            {
+                modeInit = 6;
+                modeStep = 4;
+            }
+            else
+                modeInit = modeStep = 5;
+            /* pick the best angle, sampling at distance of 5 */
+            for (mode = modeInit; mode < 35; mode += modeStep)
+            {
+                TRY_ANGLE(mode);
+                COPY4_IF_LT(acost, cost, amode, mode, asad, sad, abits, bits);
+            }
         }
 
-        /* refine best angle at distance 2, then distance 1 */
-        for (uint32_t dist = 2; dist >= 1; dist--)
+        if (!m_param->limitIntraAngle)
         {
-            lowmode = amode - dist;
-            highmode = amode + dist;
+            /* refine best angle at distance 2, then distance 1 */
+            for (uint32_t dist = 2; dist >= 1; dist--)
+            {
+                lowmode = amode - dist;
+                highmode = amode + dist;
 
-            X265_CHECK(lowmode >= 2 && lowmode <= 34, "low intra mode out of range\n");
-            TRY_ANGLE(lowmode);
-            COPY4_IF_LT(acost, cost, amode, lowmode, asad, sad, abits, bits);
+                X265_CHECK(lowmode >= 2 && lowmode <= 34, "low intra mode out of range\n");
+                TRY_ANGLE(lowmode);
+                COPY4_IF_LT(acost, cost, amode, lowmode, asad, sad, abits, bits);
 
-            X265_CHECK(highmode >= 2 && highmode <= 34, "high intra mode out of range\n");
-            TRY_ANGLE(highmode);
-            COPY4_IF_LT(acost, cost, amode, highmode, asad, sad, abits, bits);
-        }
+                X265_CHECK(highmode >= 2 && highmode <= 34, "high intra mode out of range\n");
+                TRY_ANGLE(highmode);
+                COPY4_IF_LT(acost, cost, amode, highmode, asad, sad, abits, bits);
+            }
 
-        if (amode == 33)
-        {
-            TRY_ANGLE(34);
-            COPY4_IF_LT(acost, cost, amode, 34, asad, sad, abits, bits);
+            if (amode == 33)
+            {
+                TRY_ANGLE(34);
+                COPY4_IF_LT(acost, cost, amode, 34, asad, sad, abits, bits);
+            }
         }
 
         COPY4_IF_LT(bcost, acost, bmode, amode, bsad, asad, bbits, abits);
@@ -1876,6 +1897,28 @@ sse_t Search::estIntraPredQT(Mode &intraMode, const CUGeom& cuGeom, const uint32
     {
         uint32_t bmode = 0;
 
+        int numIntraAngle = 0;
+        int intraAngleList[33] = {26};
+        if (tuSize > 8 && (m_param->limitIntraAngle & 0b01))
+        {
+            numIntraAngle = 2;
+            intraAngleList[1] = 10;
+        }
+        else if (m_param->limitIntraAngle & 0b10)
+        {
+            int intraAngleList_tmp[8] = {26, 10, 34, 18, 22, 14, 30, 6};
+            numIntraAngle = 8;
+            for (int i = 1; i < numIntraAngle; i++) // the entire array is initialized as 26 so skip first
+            {
+                intraAngleList[i] = intraAngleList_tmp[i];
+            }
+        }
+        else
+        {
+            numIntraAngle = 33;
+            for (int i = 0; i < numIntraAngle; i++)
+                intraAngleList[i] = i + 2;
+        }
         if (intraMode.cu.m_lumaIntraDir[puIdx] != (uint8_t)ALL_IDX)
             bmode = intraMode.cu.m_lumaIntraDir[puIdx];
         else
@@ -1932,12 +1975,13 @@ sse_t Search::estIntraPredQT(Mode &intraMode, const CUGeom& cuGeom, const uint32
                 COPY1_IF_LT(bcost, modeCosts[PLANAR_IDX]);
 
                 // angular predictions
-                if (primitives.cu[sizeIdx].intra_pred_allangs)
+                if (primitives.cu[sizeIdx].intra_pred_allangs && !(m_param->limitIntraAngle & 0b10) && !((m_param->limitIntraAngle & 0b01) && tuSize > 8))
                 {
                     primitives.cu[sizeIdx].transpose(m_fencTransposed, fenc, scaleStride);
                     primitives.cu[sizeIdx].intra_pred_allangs(m_intraPredAngs, intraNeighbourBuf[0], intraNeighbourBuf[1], (scaleTuSize <= 16));
-                    for (int mode = 2; mode < 35; mode++)
+                    for (int modeIdx = 0; modeIdx < numIntraAngle; modeIdx++)
                     {
+                        int mode = intraAngleList[modeIdx];
                         bits = (mpms & ((uint64_t)1 << mode)) ? m_entropyCoder.bitsIntraModeMPM(mpmModes, mode) : rbits;
                         if (mode < 18)
                             sad = sa8d(m_fencTransposed, scaleTuSize, &m_intraPredAngs[(mode - 2) * (scaleTuSize * scaleTuSize)], scaleTuSize) << costShift;
@@ -1949,8 +1993,9 @@ sse_t Search::estIntraPredQT(Mode &intraMode, const CUGeom& cuGeom, const uint32
                 }
                 else
                 {
-                    for (int mode = 2; mode < 35; mode++)
+                    for (int modeIdx = 0; modeIdx < numIntraAngle; modeIdx++)
                     {
+                        int mode = intraAngleList[modeIdx];
                         bits = (mpms & ((uint64_t)1 << mode)) ? m_entropyCoder.bitsIntraModeMPM(mpmModes, mode) : rbits;
                         int filter = !!(g_intraFilterFlags[mode] & scaleTuSize);
                         primitives.cu[sizeIdx].intra_pred[mode](m_intraPred, scaleTuSize, intraNeighbourBuf[filter], mode, scaleTuSize <= 16);
@@ -1968,10 +2013,17 @@ sse_t Search::estIntraPredQT(Mode &intraMode, const CUGeom& cuGeom, const uint32
                     candCostList[i] = MAX_INT64;
 
                 uint64_t paddedBcost = bcost + (bcost >> 2); // 1.25%
-                for (int mode = 0; mode < 35; mode++)
+                for (int mode = 0; mode < 2; mode++)
                     if ((modeCosts[mode] < paddedBcost) || ((uint32_t)mode == mpmModes[0])) 
                         /* choose for R-D analysis only if this mode passes cost threshold or matches MPM[0] */
                         updateCandList(mode, modeCosts[mode], maxCandCount, rdModeList, candCostList);
+                for (int modeIdx = 0; modeIdx < numIntraAngle; modeIdx++)
+                {
+                    int mode = intraAngleList[modeIdx];
+                    if ((modeCosts[mode] < paddedBcost) || ((uint32_t)mode == mpmModes[0])) 
+                        /* choose for R-D analysis only if this mode passes cost threshold or matches MPM[0] */
+                        updateCandList(mode, modeCosts[mode], maxCandCount, rdModeList, candCostList);
+                }
             }
 
             /* measure best candidates using simple RDO (no TU splits) */

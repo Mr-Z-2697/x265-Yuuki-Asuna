@@ -1523,6 +1523,9 @@ typedef struct x265_param
      * depending on your source material. Defaults to disabled */
     int       bEnableStrongIntraSmoothing;
 
+    /* Limit Intra prediction angles similar to H.264 */
+    int       limitIntraAngle;
+
     /*== Inter Coding Tools ==*/
 
     /* The maximum number of merge candidates that are considered during inter

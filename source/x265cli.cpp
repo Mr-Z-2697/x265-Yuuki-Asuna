@@ -208,6 +208,10 @@ namespace X265_NS {
         H1("   --hme-range <int>,<int>,<int> Motion search-range for HME L0,L1 and L2. Default(L0,L1,L2) is %d,%d,%d\n", param->hmeRange[0], param->hmeRange[1], param->hmeRange[2]);
         H0("\nSpatial / intra options:\n");
         H0("   --[no-]strong-intra-smoothing Enable strong intra smoothing for 32x32 blocks. Default %s\n", OPT(param->bEnableStrongIntraSmoothing));
+        H0("   --limit-intra-angle <int>     Limit intra angles similar to H.264. (DC and Planar is not affected) Default %d\n", param->limitIntraAngle);
+        H0("                                     - 1: Limit blocks with size larger than 8x8 to 2 angles like H.264 16x16 blocks\n");
+        H0("                                     - 2: Limit all intra prediction to 8 angles in H.264\n");
+        H0("                                     - 3: Limit both angles and large blocks\n");
         H0("   --[no-]constrained-intra      Constrained intra prediction (use only intra-coded reference pixels) Default %s\n", OPT(param->bEnableConstrainedIntra));
         H0("   --[no-]b-intra                Enable intra in B frames. Default %s\n", OPT(param->bIntraInBFrames));
         H0("   --[no-]p-intra                Enable intra in P frames. Default %s\n", OPT(param->bIntraInPFrames));
