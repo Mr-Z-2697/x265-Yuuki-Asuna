@@ -248,6 +248,7 @@ static const struct option long_options[] =
     { "hash",           required_argument, NULL, 0 },
     { "no-strong-intra-smoothing", no_argument, NULL, 0 },
     { "strong-intra-smoothing",    no_argument, NULL, 0 },
+    { "limit-intra-angle",   required_argument, NULL, 0 },
     { "no-cutree",                 no_argument, NULL, 0 },
     { "cutree",                    no_argument, NULL, 0 },
     { "no-hrd",               no_argument, NULL, 0 },
