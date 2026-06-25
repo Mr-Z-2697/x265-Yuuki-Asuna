@@ -915,10 +915,9 @@ int x265_param_default_preset(x265_param* param, const char* preset, const char*
                     param->recursionSkipMode=0;
                     [[fallthrough]];
                 case 3:
-                    /* UMH and STAR are similar in quality, but when merange is larger,
-                    UMH tends to be faster (or less slow) than STAR. */
-                    param->searchMethod = X265_UMH_SEARCH;
-                    param->searchRange = 92;
+                    param->bEnableHME = 1;
+                    param->hmeSearchMethod[0] = param->hmeSearchMethod[2] = X265_STAR_SEARCH;
+                    param->hmeSearchMethod[1] = X265_UMH_SEARCH;
                     [[fallthrough]];
                 case 2:
                     param->lookaheadSlices = 0;
