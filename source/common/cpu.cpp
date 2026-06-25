@@ -431,7 +431,7 @@ uint32_t cpu_detect(bool)
 
 uint32_t cpu_detect(bool)
 {
-    int flags = 0;
+    uint32_t flags = 0;
 
 #ifdef ENABLE_ASSEMBLY
     flags = aarch64_cpu_detect();
