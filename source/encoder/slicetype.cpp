@@ -3263,12 +3263,10 @@ bool Lookahead::scenecutInternal(Lowres **frames, int p0, int p1, bool bRealScen
     {
         int imb = frame->intraMbs[p1 - p0];
         int pmb = m_8x8Blocks - imb;
-        frame->bScenecut = true; // for csv log
+        frame->bScenecut = res; // for csv log
         x265_log(m_param, X265_LOG_DEBUG, "scene cut at %d Icost:%d Pcost:%d ratio:%.4f bias:%.4f gop:%d (imb:%d pmb:%d)\n",
                  frame->frameNum, icost, pcost, 1. - (double)pcost / icost, bias, gopSize, imb, pmb);
     }
-    else if (bRealScenecut)
-        frame->bScenecut = false; // for csv log
     return res;
 }
 
