@@ -158,16 +158,16 @@ void WorkerThread::threadMain()
             /* if the current job provider still wants help, only switch to a
              * higher priority provider (lower slice type). Else take the first
              * available job provider with the highest priority */
-            int curPriority = (m_curJobProvider->m_helpWanted) ? m_curJobProvider->m_sliceType :
+            int curPriority = (bool)m_curJobProvider->m_helpWanted ? m_curJobProvider->m_sliceType.get() :
                                                                  INVALID_SLICE_PRIORITY + 1;
             int nextProvider = -1;
             for (int i = 0; i < m_pool.m_numProviders; i++)
             {
-                if (m_pool.m_jpTable[i]->m_helpWanted &&
-                    m_pool.m_jpTable[i]->m_sliceType < curPriority)
+                if ((bool)m_pool.m_jpTable[i]->m_helpWanted &&
+                    m_pool.m_jpTable[i]->m_sliceType.get() < curPriority)
                 {
                     nextProvider = i;
-                    curPriority = m_pool.m_jpTable[i]->m_sliceType;
+                    curPriority = m_pool.m_jpTable[i]->m_sliceType.get();
                 }
             }
             if (nextProvider != -1 && m_curJobProvider != m_pool.m_jpTable[nextProvider])
@@ -191,7 +191,7 @@ void WorkerThread::threadMain()
 
 void JobProvider::tryWakeOne()
 {
-    int id = m_pool->tryAcquireSleepingThread(m_ownerBitmap, ALL_POOL_THREADS);
+    int id = m_pool->tryAcquireSleepingThread(SLEEPBITMAP_LOAD(&m_ownerBitmap), ALL_POOL_THREADS);
     if (id < 0)
     {
         m_helpWanted = true;
@@ -213,7 +213,7 @@ int ThreadPool::tryAcquireSleepingThread(sleepbitmap_t firstTryBitmap, sleepbitm
 {
     unsigned long id;
 
-    sleepbitmap_t masked = m_sleepBitmap & firstTryBitmap;
+    sleepbitmap_t masked = SLEEPBITMAP_LOAD(&m_sleepBitmap) & firstTryBitmap;
     while (masked)
     {
         SLEEPBITMAP_BSF(id, masked);
@@ -222,10 +222,10 @@ int ThreadPool::tryAcquireSleepingThread(sleepbitmap_t firstTryBitmap, sleepbitm
         if (SLEEPBITMAP_AND(&m_sleepBitmap, ~bit) & bit)
             return (int)id;
 
-        masked = m_sleepBitmap & firstTryBitmap;
+        masked = SLEEPBITMAP_LOAD(&m_sleepBitmap) & firstTryBitmap;
     }
 
-    masked = m_sleepBitmap & secondTryBitmap;
+    masked = SLEEPBITMAP_LOAD(&m_sleepBitmap) & secondTryBitmap;
     while (masked)
     {
         SLEEPBITMAP_BSF(id, masked);
@@ -234,7 +234,7 @@ int ThreadPool::tryAcquireSleepingThread(sleepbitmap_t firstTryBitmap, sleepbitm
         if (SLEEPBITMAP_AND(&m_sleepBitmap, ~bit) & bit)
             return (int)id;
 
-        masked = m_sleepBitmap & secondTryBitmap;
+        masked = SLEEPBITMAP_LOAD(&m_sleepBitmap) & secondTryBitmap;
     }
 
     return -1;
@@ -256,6 +256,17 @@ int ThreadPool::tryBondPeers(int maxPeers, sleepbitmap_t peerBitmap, BondedTaskG
     while (bondCount < maxPeers);
 
     return bondCount;
+}
+/* Computes the number of physical pools to create so that each pool has at
+ * most MAX_POOL_THREADS threads, matching the bit length of the masks used
+ * for thread pool bookkeeping. */
+static int getPhysicalPoolCount(int threads)
+{
+    if (threads <= 0)
+    {
+        return 0;
+    }
+    return (threads + MAX_POOL_THREADS - 1) / MAX_POOL_THREADS;
 }
 
 /* Distributes totalNumThreads between ThreadedME and FrameEncoder pools.
@@ -280,7 +291,8 @@ static void distributeThreadsForTme(
     }
 
     int targetTME = ThreadPool::configureTmeThreadCount(p, totalNumThreads);
-    targetTME = (targetTME < 1) ? 1 : targetTME;
+    // TME is always assigned to the first pool, and each pool can have at most MAX_POOL_THREADS threads.
+    targetTME = X265_MIN((targetTME < 1) ? 1 : targetTME, MAX_POOL_THREADS);
 
     threadsFrameEnc = totalNumThreads - targetTME;
     int defaultNumFT = ThreadPool::getFrameThreadsCount(p, totalNumThreads);
@@ -363,11 +375,13 @@ static void distributeThreadsForTme(
         memset(threadsPerPool, 0, sizeof(int) * (numNumaNodes + 2));
         memset(nodeMaskPerPool, 0, sizeof(uint64_t) * (numNumaNodes + 2));
 
-        numPools = numNumaNodes = static_cast<int>(threads.size());
-        for (int pool = 0; pool < numPools; pool++)
+        numPools = 0;
+        numNumaNodes = static_cast<int>(threads.size());
+        for (int pool = 0; pool < numNumaNodes; pool++)
         {
             threadsPerPool[pool] = threads[pool];
             nodeMaskPerPool[pool] = nodeMasks[pool];
+            numPools += getPhysicalPoolCount(threadsPerPool[pool]);
         }
     }
     else
@@ -378,13 +392,15 @@ static void distributeThreadsForTme(
         memset(threadsPerPool, 0, sizeof(int) * (numNumaNodes + 2));
         memset(nodeMaskPerPool, 0, sizeof(uint64_t) * (numNumaNodes + 2));
 
+        numPools = 0;
+
         threadsPerPool[0] = targetTME;
         nodeMaskPerPool[0] = 1;
+        numPools += 1;
 
         threadsPerPool[1] = threadsFrameEnc;
         nodeMaskPerPool[1] = 1;
-
-        numPools = 2;
+        numPools += getPhysicalPoolCount(threadsFrameEnc);
     }
 }
 
@@ -442,7 +458,7 @@ ThreadPool* ThreadPool::allocThreadPools(x265_param* p, int& numPools, bool isTh
     /* limit threads based on param->numaPools
      * For windows because threads can't be allocated to live across sockets
      * changing the default behavior to be per-socket pools -- FIXME */
-#if defined(_WIN32_WINNT) && _WIN32_WINNT >= _WIN32_WINNT_WIN7 || HAVE_LIBNUMA
+#if defined(_WIN32_WINNT) && _WIN32_WINNT >= _WIN32_WINNT_WIN7
     if (!strlen(p->numaPools) || (strcmp(p->numaPools, "NULL") == 0 || strcmp(p->numaPools, "*") == 0 || strcmp(p->numaPools, "") == 0))
     {
          char poolString[50] = "";
@@ -550,7 +566,7 @@ ThreadPool* ThreadPool::allocThreadPools(x265_param* p, int& numPools, bool isTh
             
             if (threadsPerPool[i])
             {
-                numPools += (threadsPerPool[i] + MAX_POOL_THREADS - 1) / MAX_POOL_THREADS;
+                numPools += getPhysicalPoolCount(threadsPerPool[i]);
                 totalNumThreads += threadsPerPool[i];
             }
         }
@@ -591,7 +607,8 @@ ThreadPool* ThreadPool::allocThreadPools(x265_param* p, int& numPools, bool isTh
             
             while (!threadsPerPool[node])
                 node++;
-            int numThreads = (p->bThreadedME) ? threadsPerPool[node] : X265_MIN(MAX_POOL_THREADS, threadsPerPool[node]);
+            // Consume a block no larger than MAX_POOL_THREADS when creating a physical pool.
+            int numThreads = X265_MIN(threadsPerPool[node], MAX_POOL_THREADS);
             int origNumThreads = numThreads;
 
             if (i == 0 && p->lookaheadThreads > numThreads / 2)
@@ -640,7 +657,7 @@ ThreadPool* ThreadPool::allocThreadPools(x265_param* p, int& numPools, bool isTh
 
 ThreadPool::ThreadPool()
 {
-    memset(this, 0, sizeof(*this));
+    memset(static_cast<void*>(this), 0, sizeof(*this));
 }
 
 bool ThreadPool::create(int numThreads, int maxProviders, uint64_t nodeMask)
@@ -708,7 +725,7 @@ void ThreadPool::stopWorkers()
         m_isActive = false;
         for (int i = 0; i < m_numWorkers; i++)
         {
-            while (!(m_sleepBitmap & ((sleepbitmap_t)1 << i)))
+            while (!(SLEEPBITMAP_LOAD(&m_sleepBitmap) & ((sleepbitmap_t)1 << i)))
                 GIVE_UP_TIME();
             m_workers[i].awaken();
             m_workers[i].stop();

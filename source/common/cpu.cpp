@@ -459,6 +459,7 @@ uint32_t cpu_detect(bool)
 
 uint32_t cpu_detect( bool benableavx512 )
 {
+    (void)benableavx512;
     uint32_t flags = 0;
 
 #ifdef ENABLE_ASSEMBLY
@@ -469,14 +470,16 @@ uint32_t cpu_detect( bool benableavx512 )
 }
 
 #elif X265_ARCH_POWER8
+#include "ppc/cpu.h"
 
 uint32_t cpu_detect(bool)
 {
-#if HAVE_ALTIVEC
-    return X265_CPU_ALTIVEC;
-#else
-    return 0;
-#endif
+    (void)benableavx512;
+    uint32_t flags = 0;
+
+    flags = ppc_cpu_detect();
+
+    return flags;
 }
 
 #else // if X265_ARCH_POWER8

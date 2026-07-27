@@ -59,7 +59,7 @@ protected:
 
     int frameCount;
 
-    bool threadActive;
+    AtomicBool threadActive;
 
     ThreadSafeInteger readCount;
 
