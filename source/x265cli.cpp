@@ -559,7 +559,7 @@ namespace X265_NS {
             output->release();
         output = NULL;
 
-        if (param->foveaGazeFile)
+        if (param)
             free(param->foveaGazeFile);
 
         if (param && api)
