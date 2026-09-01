@@ -1071,7 +1071,7 @@ static void psyRdoQuant_c_2(int16_t *m_resiDctCoeff, int16_t *m_fencDctCoeff, in
 }
 
 template<int log2TrSize>
-static void nonPsyRdoQuantAll_c(int16_t *resiDctCoeff, int64_t *costUncoded, int64_t *totalUncodedCost, int64_t *totalRdCost)
+static void nonPsyRdoQuantAll_c(const int16_t *resiDctCoeff, int64_t *costUncoded, int64_t *totalUncodedCost, int64_t *totalRdCost)
 {
     const int transformShift = MAX_TR_DYNAMIC_RANGE - X265_DEPTH - log2TrSize;
     const int scaleBits = SCALE_BITS - 2 * transformShift;
@@ -1087,7 +1087,7 @@ static void nonPsyRdoQuantAll_c(int16_t *resiDctCoeff, int64_t *costUncoded, int
 }
 
 template<int log2TrSize>
-static void psyRdoQuantAll_c(int16_t *resiDctCoeff, int16_t *fencDctCoeff, int64_t *costUncoded, int64_t *totalUncodedCost, int64_t *totalRdCost, int64_t *psyScale)
+static void psyRdoQuantAll_c(const int16_t *resiDctCoeff, const int16_t *fencDctCoeff, int64_t *costUncoded, int64_t *totalUncodedCost, int64_t *totalRdCost, const int64_t *psyScale)
 {
     const int transformShift = MAX_TR_DYNAMIC_RANGE - X265_DEPTH - log2TrSize;
     const int scaleBits = SCALE_BITS - 2 * transformShift;
