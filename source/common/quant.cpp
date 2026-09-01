@@ -884,13 +884,14 @@ uint32_t Quant::rdoQuant(const CUData& cu, int16_t* dstCoeff, TextType ttype, ui
              * FIX15 nature of the CABAC cost tables minus the forward transform scale */
 
             /* cost of not coding this coefficient (all distortion, no signal bits) */
-            costUncoded[blkPos] = ((int64_t)signCoef * signCoef) << scaleBits;
+            int64_t uncodedCost = ((int64_t)signCoef * signCoef) << scaleBits;
             X265_CHECK((!!scanPos ^ !!blkPos) == 0, "failed on (blkPos=0 && scanPos!=0)\n");
             if (usePsyMask & scanPos)
                 /* when no residual coefficient is coded, predicted coef == recon coef */
-                costUncoded[blkPos] -= PSYVALUE(predictedCoef);
+                uncodedCost -= PSYVALUE(predictedCoef);
 
-            totalUncodedCost += costUncoded[blkPos];
+            costUncoded[blkPos] = uncodedCost;
+            totalUncodedCost += uncodedCost;
 
             if (scanPos > (uint32_t)lastScanPos)
             {
@@ -901,7 +902,7 @@ uint32_t Quant::rdoQuant(const CUData& cu, int16_t* dstCoeff, TextType ttype, ui
                 /* No non-zero coefficient yet found, but this does not mean
                  * there is no uncoded-cost for this coefficient. Pre-
                  * quantization the coefficient may have been non-zero */
-                totalRdCost += costUncoded[blkPos];
+                totalRdCost += uncodedCost;
                 continue;
             }
 
@@ -919,7 +920,7 @@ uint32_t Quant::rdoQuant(const CUData& cu, int16_t* dstCoeff, TextType ttype, ui
                 // fast zero coeff path
                 /* set default costs to uncoded costs */
                 costSig[scanPos] = SIGCOST(estBitsSbac.significantBits[0][ctxSig]);
-                costCoeff[scanPos] = costUncoded[blkPos] + costSig[scanPos];
+                costCoeff[scanPos] = uncodedCost + costSig[scanPos];
                 sigRateDelta[blkPos] = estBitsSbac.significantBits[1][ctxSig] - estBitsSbac.significantBits[0][ctxSig];
                 totalRdCost += costCoeff[scanPos];
                 rateIncUp[blkPos] = greaterOneBits[0];
@@ -954,7 +955,7 @@ uint32_t Quant::rdoQuant(const CUData& cu, int16_t* dstCoeff, TextType ttype, ui
                     {
                         /* set default costs to uncoded costs */
                         costSig[scanPos] = SIGCOST(estBitsSbac.significantBits[0][ctxSig]);
-                        costCoeff[scanPos] = costUncoded[blkPos] + costSig[scanPos];
+                        costCoeff[scanPos] = uncodedCost + costSig[scanPos];
                     }
                     sigRateDelta[blkPos] = estBitsSbac.significantBits[1][ctxSig] - estBitsSbac.significantBits[0][ctxSig];
                     sigCoefBits = estBitsSbac.significantBits[1][ctxSig];
@@ -1101,7 +1102,7 @@ uint32_t Quant::rdoQuant(const CUData& cu, int16_t* dstCoeff, TextType ttype, ui
                 {
                     sigCoeffGroupFlag64 |= cgBlkPosMask;
                     cgRdStats.codedLevelAndDist += costCoeff[scanPos] - costSig[scanPos];
-                    cgRdStats.uncodedDist += costUncoded[blkPos];
+                    cgRdStats.uncodedDist += uncodedCost;
                     cgRdStats.nnzBeforePos0 += scanPosinCG;
                 }
             }
