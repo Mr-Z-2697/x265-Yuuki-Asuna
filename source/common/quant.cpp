@@ -892,16 +892,6 @@ uint32_t Quant::rdoQuant(const CUData& cu, int16_t* dstCoeff, TextType ttype, ui
 
             totalUncodedCost += costUncoded[blkPos];
 
-            // coefficient level estimation
-            const int* greaterOneBits = estBitsSbac.greaterOneBits[4 * ctxSet + c1];
-            //const uint32_t ctxSig = (blkPos == 0) ? 0 : table_cnt[(trSize == 4) ? 4 : patternSigCtx][scan4x4[scanPosinCG]] + ctxSigOffset;
-            static const uint64_t table_cnt64[4] = {0x0000000100110112ULL, 0x0000000011112222ULL, 0x0012001200120012ULL, 0x2222222222222222ULL};
-            uint64_t ctxCnt = (trSize == 4) ? 0x8877886654325410ULL : table_cnt64[patternSigCtx];
-            const uint32_t ctxSig = (blkPos == 0) ? 0 : ((ctxCnt >> (4 * scan4x4[scanPosinCG])) & 0xF) + ctxSigOffset;
-            // NOTE: above equal to 'table_cnt[(trSize == 4) ? 4 : patternSigCtx][scan4x4[scanPosinCG]] + ctxSigOffset'
-            X265_CHECK(ctxSig == getSigCtxInc(patternSigCtx, log2TrSize, trSize, blkPos, bIsLuma, firstSignificanceMapContext), "sigCtx check failure\n");
-
-            // before find lastest non-zero coeff
             if (scanPos > (uint32_t)lastScanPos)
             {
                 /* coefficients after lastNZ have no distortion signal cost */
@@ -912,8 +902,19 @@ uint32_t Quant::rdoQuant(const CUData& cu, int16_t* dstCoeff, TextType ttype, ui
                  * there is no uncoded-cost for this coefficient. Pre-
                  * quantization the coefficient may have been non-zero */
                 totalRdCost += costUncoded[blkPos];
+                continue;
             }
-            else if (!(subFlagMask & 1))
+
+            // coefficient level estimation
+            const int* greaterOneBits = estBitsSbac.greaterOneBits[4 * ctxSet + c1];
+            //const uint32_t ctxSig = (blkPos == 0) ? 0 : table_cnt[(trSize == 4) ? 4 : patternSigCtx][scan4x4[scanPosinCG]] + ctxSigOffset;
+            static const uint64_t table_cnt64[4] = {0x0000000100110112ULL, 0x0000000011112222ULL, 0x0012001200120012ULL, 0x2222222222222222ULL};
+            uint64_t ctxCnt = (trSize == 4) ? 0x8877886654325410ULL : table_cnt64[patternSigCtx];
+            const uint32_t ctxSig = (blkPos == 0) ? 0 : ((ctxCnt >> (4 * scan4x4[scanPosinCG])) & 0xF) + ctxSigOffset;
+            // NOTE: above equal to 'table_cnt[(trSize == 4) ? 4 : patternSigCtx][scan4x4[scanPosinCG]] + ctxSigOffset'
+            X265_CHECK(ctxSig == getSigCtxInc(patternSigCtx, log2TrSize, trSize, blkPos, bIsLuma, firstSignificanceMapContext), "sigCtx check failure\n");
+
+            if (!(subFlagMask & 1))
             {
                 // fast zero coeff path
                 /* set default costs to uncoded costs */
@@ -1494,4 +1495,3 @@ uint32_t Quant::getSigCtxInc(uint32_t patternSigCtx, uint32_t log2TrSize, uint32
 
     return (bIsLuma && (posX | posY) >= 4) ? 3 + offset : offset;
 }
-
