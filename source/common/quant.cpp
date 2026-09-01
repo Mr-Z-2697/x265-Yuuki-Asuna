@@ -703,42 +703,20 @@ uint32_t Quant::rdoQuant(const CUData& cu, int16_t* dstCoeff, TextType ttype, ui
     memset(&costCoeff[(cgLastScanPos + 1) << MLS_CG_SIZE], 0, zeroCG * MLS_CG_BLK_SIZE * sizeof(int64_t));
     memset(&costSig[(cgLastScanPos + 1) << MLS_CG_SIZE], 0, zeroCG * MLS_CG_BLK_SIZE * sizeof(int64_t));
 
-    /* sum zero coeff (uncodec) cost */
-
-    // TODO: does we need these cost?
+    /* Initialize the uncoded distortion for every coefficient. This lets the
+     * coefficient loop replace uncoded costs with coded costs as needed. */
     if (usePsyMask)
     {
-        for (int cgScanPos = cgLastScanPos + 1; cgScanPos < (int)cgNum ; cgScanPos++)
-        {
-            X265_CHECK(coeffNum[cgScanPos] == 0, "count of coeff failure\n");
-            uint32_t scanPosBase = (cgScanPos << MLS_CG_SIZE);
-            uint32_t blkPos      = scan[scanPosBase];
-#if X265_ARCH_X86
-            bool enable512 = detect512();
-            if (enable512)
-                primitives.cu[log2TrSize - 2].psyRdoQuant(m_resiDctCoeff, m_fencDctCoeff, costUncoded, &totalUncodedCost, &totalRdCost, &psyScale, blkPos);
-            else
-            {
-                primitives.cu[log2TrSize - 2].psyRdoQuant_1p(m_resiDctCoeff,  costUncoded, &totalUncodedCost, &totalRdCost,blkPos);
-                primitives.cu[log2TrSize - 2].psyRdoQuant_2p(m_resiDctCoeff, m_fencDctCoeff, costUncoded, &totalUncodedCost, &totalRdCost, &psyScale, blkPos);
-            }
-#else
-            primitives.cu[log2TrSize - 2].psyRdoQuant_1p(m_resiDctCoeff, costUncoded, &totalUncodedCost, &totalRdCost, blkPos);
-            primitives.cu[log2TrSize - 2].psyRdoQuant_2p(m_resiDctCoeff, m_fencDctCoeff, costUncoded, &totalUncodedCost, &totalRdCost, &psyScale, blkPos);
-#endif
-        }
+        primitives.cu[log2TrSize - 2].psyRdoQuantAll(m_resiDctCoeff, m_fencDctCoeff, costUncoded, &totalUncodedCost, &totalRdCost, &psyScale);
+
+        /* DC distortion does not include the psy-RDOQ reconstruction bias. */
+        int64_t dcPsyCost = PSYVALUE(m_fencDctCoeff[0] - m_resiDctCoeff[0]);
+        costUncoded[0] += dcPsyCost;
+        totalUncodedCost += dcPsyCost;
+        totalRdCost += dcPsyCost;
     }
     else
-    {
-        // non-psy path
-        for (int cgScanPos = cgLastScanPos + 1; cgScanPos < (int)cgNum ; cgScanPos++)
-        {
-            X265_CHECK(coeffNum[cgScanPos] == 0, "count of coeff failure\n");
-            uint32_t scanPosBase = (cgScanPos << MLS_CG_SIZE);
-            uint32_t blkPos      = scan[scanPosBase];
-            primitives.cu[log2TrSize - 2].nonPsyRdoQuant(m_resiDctCoeff, costUncoded, &totalUncodedCost, &totalRdCost, blkPos);
-        }
-    }
+        primitives.cu[log2TrSize - 2].nonPsyRdoQuantAll(m_resiDctCoeff, costUncoded, &totalUncodedCost, &totalRdCost);
     /* iterate over coding groups in reverse scan order */
     for (int cgScanPos = cgLastScanPos; cgScanPos >= 0; cgScanPos--)
     {
@@ -756,31 +734,6 @@ uint32_t Quant::rdoQuant(const CUData& cu, int16_t* dstCoeff, TextType ttype, ui
 
         if (cgScanPos && (coeffNum[cgScanPos] == 0))
         {
-            // TODO: does we need zero-coeff cost?
-            const uint32_t scanPosBase = (cgScanPos << MLS_CG_SIZE);
-            uint32_t blkPos = scan[scanPosBase];
-            if (usePsyMask)
-            {
-#if X265_ARCH_X86
-                bool enable512 = detect512();
-                if (enable512)
-                    primitives.cu[log2TrSize - 2].psyRdoQuant(m_resiDctCoeff, m_fencDctCoeff, costUncoded, &totalUncodedCost, &totalRdCost, &psyScale, blkPos);
-                else
-                {
-                    primitives.cu[log2TrSize - 2].psyRdoQuant_1p(m_resiDctCoeff, costUncoded, &totalUncodedCost, &totalRdCost, blkPos);
-                    primitives.cu[log2TrSize - 2].psyRdoQuant_2p(m_resiDctCoeff, m_fencDctCoeff, costUncoded, &totalUncodedCost, &totalRdCost, &psyScale, blkPos);
-                }
-#else
-                primitives.cu[log2TrSize - 2].psyRdoQuant_1p(m_resiDctCoeff, costUncoded, &totalUncodedCost, &totalRdCost, blkPos);
-                primitives.cu[log2TrSize - 2].psyRdoQuant_2p(m_resiDctCoeff, m_fencDctCoeff, costUncoded, &totalUncodedCost, &totalRdCost, &psyScale, blkPos);
-#endif
-            }
-            else
-            {
-                // non-psy path
-                primitives.cu[log2TrSize - 2].nonPsyRdoQuant(m_resiDctCoeff, costUncoded, &totalUncodedCost, &totalRdCost, blkPos);
-            }
-
             /* there were no coded coefficients in this coefficient group */
             {
                 uint32_t ctxSig = getSigCoeffGroupCtxInc(sigCoeffGroupFlag64, cgPosX, cgPosY, cgBlkPos, cgStride);
@@ -807,20 +760,7 @@ uint32_t Quant::rdoQuant(const CUData& cu, int16_t* dstCoeff, TextType ttype, ui
             uint32_t maxAbsLevel = dstCoeff[blkPos];                  /* abs(quantized coeff) */
             int signCoef         = m_resiDctCoeff[blkPos];            /* pre-quantization DCT coeff */
             int predictedCoef    = m_fencDctCoeff[blkPos] - signCoef; /* predicted DCT = source DCT - residual DCT*/
-
-            /* RDOQ measures distortion as the squared difference between the unquantized coded level
-             * and the original DCT coefficient. The result is shifted scaleBits to account for the
-             * FIX15 nature of the CABAC cost tables minus the forward transform scale */
-
-            /* cost of not coding this coefficient (all distortion, no signal bits) */
-            int64_t uncodedCost = ((int64_t)signCoef * signCoef) << scaleBits;
-            X265_CHECK((!!scanPos ^ !!blkPos) == 0, "failed on (blkPos=0 && scanPos!=0)\n");
-            if (usePsyMask & scanPos)
-                /* when no residual coefficient is coded, predicted coef == recon coef */
-                uncodedCost -= PSYVALUE(predictedCoef);
-
-            costUncoded[blkPos] = uncodedCost;
-            totalUncodedCost += uncodedCost;
+            int64_t uncodedCost = costUncoded[blkPos];
 
             if (scanPos > (uint32_t)lastScanPos)
             {
@@ -828,10 +768,6 @@ uint32_t Quant::rdoQuant(const CUData& cu, int16_t* dstCoeff, TextType ttype, ui
                 costCoeff[scanPos] = 0;
                 costSig[scanPos] = 0;
 
-                /* No non-zero coefficient yet found, but this does not mean
-                 * there is no uncoded-cost for this coefficient. Pre-
-                 * quantization the coefficient may have been non-zero */
-                totalRdCost += uncodedCost;
                 continue;
             }
 
@@ -849,7 +785,7 @@ uint32_t Quant::rdoQuant(const CUData& cu, int16_t* dstCoeff, TextType ttype, ui
                 costSig[scanPos] = SIGCOST(estBitsSbac.significantBits[0][ctxSig]);
                 costCoeff[scanPos] = uncodedCost + costSig[scanPos];
                 sigRateDelta[blkPos] = estBitsSbac.significantBits[1][ctxSig] - estBitsSbac.significantBits[0][ctxSig];
-                totalRdCost += costCoeff[scanPos];
+                totalRdCost += costCoeff[scanPos] - uncodedCost;
                 rateIncUp[blkPos] = greaterOneBits[0];
 
                 subFlagMask >>= 1;
@@ -956,7 +892,7 @@ uint32_t Quant::rdoQuant(const CUData& cu, int16_t* dstCoeff, TextType ttype, ui
                 }
 
                 dstCoeff[blkPos] = (int16_t)level;
-                totalRdCost += costCoeff[scanPos];
+                totalRdCost += costCoeff[scanPos] - uncodedCost;
 
                 /* record costs for sign-hiding performed at the end */
                 if (signHideMask & level)

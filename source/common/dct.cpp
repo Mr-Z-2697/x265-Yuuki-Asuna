@@ -1070,6 +1070,41 @@ static void psyRdoQuant_c_2(int16_t *m_resiDctCoeff, int16_t *m_fencDctCoeff, in
 	}
 }
 
+template<int log2TrSize>
+static void nonPsyRdoQuantAll_c(int16_t *resiDctCoeff, int64_t *costUncoded, int64_t *totalUncodedCost, int64_t *totalRdCost)
+{
+    const int transformShift = MAX_TR_DYNAMIC_RANGE - X265_DEPTH - log2TrSize;
+    const int scaleBits = SCALE_BITS - 2 * transformShift;
+    const int numCoeff = 1 << (2 * log2TrSize);
+
+    for (int blkPos = 0; blkPos < numCoeff; blkPos++)
+    {
+        int64_t signCoef = resiDctCoeff[blkPos];
+        costUncoded[blkPos] = static_cast<int64_t>((double)((signCoef * signCoef) << scaleBits));
+        *totalUncodedCost += costUncoded[blkPos];
+        *totalRdCost += costUncoded[blkPos];
+    }
+}
+
+template<int log2TrSize>
+static void psyRdoQuantAll_c(int16_t *resiDctCoeff, int16_t *fencDctCoeff, int64_t *costUncoded, int64_t *totalUncodedCost, int64_t *totalRdCost, int64_t *psyScale)
+{
+    const int transformShift = MAX_TR_DYNAMIC_RANGE - X265_DEPTH - log2TrSize;
+    const int scaleBits = SCALE_BITS - 2 * transformShift;
+    const int psyShift = X265_MAX(0, 2 * transformShift + 1);
+    const int numCoeff = 1 << (2 * log2TrSize);
+
+    for (int blkPos = 0; blkPos < numCoeff; blkPos++)
+    {
+        int64_t signCoef = resiDctCoeff[blkPos];
+        int64_t predictedCoef = fencDctCoeff[blkPos] - signCoef;
+        costUncoded[blkPos] = static_cast<int64_t>((double)((signCoef * signCoef) << scaleBits));
+        costUncoded[blkPos] -= static_cast<int64_t>((double)((*psyScale * predictedCoef) >> psyShift));
+        *totalUncodedCost += costUncoded[blkPos];
+        *totalRdCost += costUncoded[blkPos];
+    }
+}
+
 namespace X265_NS {
 // x265 private namespace
 void setupDCTPrimitives_c(EncoderPrimitives& p)
@@ -1086,6 +1121,14 @@ void setupDCTPrimitives_c(EncoderPrimitives& p)
     p.cu[BLOCK_8x8].psyRdoQuant = psyRdoQuant_c<3>;
     p.cu[BLOCK_16x16].psyRdoQuant = psyRdoQuant_c<4>;
     p.cu[BLOCK_32x32].psyRdoQuant = psyRdoQuant_c<5>;
+    p.cu[BLOCK_4x4].nonPsyRdoQuantAll = nonPsyRdoQuantAll_c<2>;
+    p.cu[BLOCK_8x8].nonPsyRdoQuantAll = nonPsyRdoQuantAll_c<3>;
+    p.cu[BLOCK_16x16].nonPsyRdoQuantAll = nonPsyRdoQuantAll_c<4>;
+    p.cu[BLOCK_32x32].nonPsyRdoQuantAll = nonPsyRdoQuantAll_c<5>;
+    p.cu[BLOCK_4x4].psyRdoQuantAll = psyRdoQuantAll_c<2>;
+    p.cu[BLOCK_8x8].psyRdoQuantAll = psyRdoQuantAll_c<3>;
+    p.cu[BLOCK_16x16].psyRdoQuantAll = psyRdoQuantAll_c<4>;
+    p.cu[BLOCK_32x32].psyRdoQuantAll = psyRdoQuantAll_c<5>;
     p.dst4x4 = dst4_c;
     p.cu[BLOCK_4x4].dct   = dct4_c;
     p.cu[BLOCK_8x8].dct   = dct8_c;

@@ -3187,6 +3187,14 @@ void setupAssemblyPrimitives(EncoderPrimitives &p, int cpuMask) // Main10
         p.cu[BLOCK_8x8].psyRdoQuant = PFX(psyRdoQuant8_avx512);
         p.cu[BLOCK_16x16].psyRdoQuant = PFX(psyRdoQuant16_avx512);
         p.cu[BLOCK_32x32].psyRdoQuant = PFX(psyRdoQuant32_avx512);
+        p.cu[BLOCK_4x4].nonPsyRdoQuantAll = PFX(nonPsyRdoQuantAll4_avx512);
+        p.cu[BLOCK_8x8].nonPsyRdoQuantAll = PFX(nonPsyRdoQuantAll8_avx512);
+        p.cu[BLOCK_16x16].nonPsyRdoQuantAll = PFX(nonPsyRdoQuantAll16_avx512);
+        p.cu[BLOCK_32x32].nonPsyRdoQuantAll = PFX(nonPsyRdoQuantAll32_avx512);
+        p.cu[BLOCK_4x4].psyRdoQuantAll = PFX(psyRdoQuantAll4_avx512);
+        p.cu[BLOCK_8x8].psyRdoQuantAll = PFX(psyRdoQuantAll8_avx512);
+        p.cu[BLOCK_16x16].psyRdoQuantAll = PFX(psyRdoQuantAll16_avx512);
+        p.cu[BLOCK_32x32].psyRdoQuantAll = PFX(psyRdoQuantAll32_avx512);
 
         p.cu[BLOCK_32x32].sse_ss = (pixel_sse_ss_t)PFX(pixel_ssd_32x32_avx512);
         p.cu[BLOCK_64x64].sse_ss = (pixel_sse_ss_t)PFX(pixel_ssd_64x64_avx512);
@@ -5416,6 +5424,14 @@ void setupAssemblyPrimitives(EncoderPrimitives &p, int cpuMask) // Main
         p.cu[BLOCK_8x8].psyRdoQuant = PFX(psyRdoQuant8_avx512);
         p.cu[BLOCK_16x16].psyRdoQuant = PFX(psyRdoQuant16_avx512);
         p.cu[BLOCK_32x32].psyRdoQuant = PFX(psyRdoQuant32_avx512);
+        p.cu[BLOCK_4x4].nonPsyRdoQuantAll = PFX(nonPsyRdoQuantAll4_avx512);
+        p.cu[BLOCK_8x8].nonPsyRdoQuantAll = PFX(nonPsyRdoQuantAll8_avx512);
+        p.cu[BLOCK_16x16].nonPsyRdoQuantAll = PFX(nonPsyRdoQuantAll16_avx512);
+        p.cu[BLOCK_32x32].nonPsyRdoQuantAll = PFX(nonPsyRdoQuantAll32_avx512);
+        p.cu[BLOCK_4x4].psyRdoQuantAll = PFX(psyRdoQuantAll4_avx512);
+        p.cu[BLOCK_8x8].psyRdoQuantAll = PFX(psyRdoQuantAll8_avx512);
+        p.cu[BLOCK_16x16].psyRdoQuantAll = PFX(psyRdoQuantAll16_avx512);
+        p.cu[BLOCK_32x32].psyRdoQuantAll = PFX(psyRdoQuantAll32_avx512);
         p.pu[LUMA_32x8].satd = PFX(pixel_satd_32x8_avx512);
         p.pu[LUMA_32x16].satd = PFX(pixel_satd_32x16_avx512);
         p.pu[LUMA_32x24].satd = PFX(pixel_satd_32x24_avx512);
