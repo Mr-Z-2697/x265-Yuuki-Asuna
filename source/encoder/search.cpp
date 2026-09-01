@@ -643,7 +643,7 @@ void Search::codeCoeffQTChroma(const CUData& cu, uint32_t tuDepth, uint32_t absP
     }
 }
 
-void Search::codeIntraLumaQT(Mode& mode, const CUGeom& cuGeom, uint32_t tuDepth, uint32_t absPartIdx, bool bAllowSplit, bool bUseCachedIntraData, Cost& outCost, const uint32_t depthRange[2])
+void Search::codeIntraLumaQT(Mode& mode, const CUGeom& cuGeom, uint32_t tuDepth, uint32_t absPartIdx, bool bAllowSplit, bool bUseCachedIntraData, const IntraLumaQTCache* fullResult, Cost& outCost, const uint32_t depthRange[2])
 {
     CUData& cu = mode.cu;
     uint32_t fullDepth  = cuGeom.depth + tuDepth;
@@ -667,7 +667,26 @@ void Search::codeIntraLumaQT(Mode& mode, const CUGeom& cuGeom, uint32_t tuDepth,
     pixel*   reconQt = m_rqt[qtLayer].reconQtYuv.getLumaAddr(absPartIdx);
     uint32_t reconQtStride = m_rqt[qtLayer].reconQtYuv.m_size;
 
-    if (mightNotSplit)
+    if (fullResult)
+    {
+        X265_CHECK(mightNotSplit && bUseCachedIntraData, "invalid cached intra TU\n");
+
+        if (mightSplit)
+            m_entropyCoder.store(m_rqt[fullDepth].rqtRoot);
+
+        uint32_t lumaPredMode = cu.m_lumaIntraDir[absPartIdx];
+        pixel* pred = mode.predYuv.getLumaAddr(absPartIdx);
+        uint32_t stride = mode.fencYuv->m_size;
+        predIntraLumaAng(lumaPredMode, pred, stride, log2TrSize);
+
+        bCBF = fullResult->cbf;
+        cu.setTransformSkipSubParts(0, TEXT_LUMA, absPartIdx, fullDepth);
+        cu.setTUDepthSubParts(tuDepth, absPartIdx, fullDepth);
+        cu.setCbfSubParts(bCBF, TEXT_LUMA, absPartIdx, fullDepth);
+        fullCost = fullResult->cost;
+        m_entropyCoder.load(mode.contexts);
+    }
+    else if (mightNotSplit)
     {
         if (mightSplit)
             m_entropyCoder.store(m_rqt[fullDepth].rqtRoot);
@@ -797,7 +816,7 @@ void Search::codeIntraLumaQT(Mode& mode, const CUGeom& cuGeom, uint32_t tuDepth,
             if (checkTransformSkip)
                 codeIntraLumaTSkip(mode, cuGeom, tuDepth + 1, qPartIdx, false, splitCost);
             else
-                codeIntraLumaQT(mode, cuGeom, tuDepth + 1, qPartIdx, bAllowSplit, false, splitCost, depthRange);
+                codeIntraLumaQT(mode, cuGeom, tuDepth + 1, qPartIdx, bAllowSplit, false, NULL, splitCost, depthRange);
 
             cbf |= cu.getCbf(qPartIdx, TEXT_LUMA, tuDepth + 1);
         }
@@ -842,7 +861,13 @@ void Search::codeIntraLumaQT(Mode& mode, const CUGeom& cuGeom, uint32_t tuDepth,
     PicYuv*  reconPic = m_frame->m_reconPic[0];
     pixel*   picReconY = reconPic->getLumaAddr(cu.m_cuAddr, cuGeom.absPartIdx + absPartIdx);
     intptr_t picStride = reconPic->m_stride;
-    primitives.cu[sizeIdx].copy_pp(picReconY, picStride, reconQt, reconQtStride);
+    if (fullResult)
+    {
+        const pixel* cachedRecon = mode.reconYuv.getLumaAddr(absPartIdx);
+        primitives.cu[sizeIdx].copy_pp(picReconY, picStride, cachedRecon, mode.reconYuv.m_size);
+    }
+    else
+        primitives.cu[sizeIdx].copy_pp(picReconY, picStride, reconQt, reconQtStride);
 
     outCost.rdcost     += fullCost.rdcost;
     outCost.distortion += fullCost.distortion;
@@ -1817,7 +1842,7 @@ void Search::encodeIntraInInter(Mode& intraMode, const CUGeom& cuGeom)
     m_entropyCoder.load(m_rqt[cuGeom.depth].cur);
 
     Cost icosts;
-    codeIntraLumaQT(intraMode, cuGeom, 0, 0, false, false, icosts, tuDepthRange);
+    codeIntraLumaQT(intraMode, cuGeom, 0, 0, false, false, NULL, icosts, tuDepthRange);
     extractIntraResultQT(cu, *reconYuv, 0, 0);
 
     intraMode.lumaDistortion = icosts.distortion;
@@ -1880,6 +1905,8 @@ sse_t Search::estIntraPredQT(Mode &intraMode, const CUGeom& cuGeom, const uint32
     {
         uint32_t bmode = 0;
         bool bUseCachedIntraData = false;
+        bool bBestFullResult = false;
+        IntraLumaQTCache bestFullResult;
 
         if (intraMode.cu.m_lumaIntraDir[puIdx] != (uint8_t)ALL_IDX)
             bmode = intraMode.cu.m_lumaIntraDir[puIdx];
@@ -2004,8 +2031,21 @@ sse_t Search::estIntraPredQT(Mode &intraMode, const CUGeom& cuGeom, const uint32
                 if (checkTransformSkip)
                     codeIntraLumaTSkip(intraMode, cuGeom, initTuDepth, absPartIdx, bUseCachedIntraData, icosts);
                 else
-                    codeIntraLumaQT(intraMode, cuGeom, initTuDepth, absPartIdx, false, bUseCachedIntraData, icosts, depthRange);
-                COPY2_IF_LT(bcost, icosts.rdcost, bmode, rdModeList[i]);
+                    codeIntraLumaQT(intraMode, cuGeom, initTuDepth, absPartIdx, false, bUseCachedIntraData, NULL, icosts, depthRange);
+
+                if (icosts.rdcost < bcost)
+                {
+                    bcost = icosts.rdcost;
+                    bmode = rdModeList[i];
+                    bBestFullResult = !checkTransformSkip && cu.m_tuDepth[absPartIdx] == initTuDepth;
+                    if (bBestFullResult)
+                    {
+                        bestFullResult.cost = icosts;
+                        bestFullResult.cbf = cu.m_cbf[0][absPartIdx];
+                        extractIntraResultQT(cu, *reconYuv, initTuDepth, absPartIdx);
+                        m_entropyCoder.store(intraMode.contexts);
+                    }
+                }
             }
         }
 
@@ -2019,10 +2059,11 @@ sse_t Search::estIntraPredQT(Mode &intraMode, const CUGeom& cuGeom, const uint32
         if (checkTransformSkip)
             codeIntraLumaTSkip(intraMode, cuGeom, initTuDepth, absPartIdx, bUseCachedIntraData, icosts);
         else
-            codeIntraLumaQT(intraMode, cuGeom, initTuDepth, absPartIdx, true, bUseCachedIntraData, icosts, depthRange);
+            codeIntraLumaQT(intraMode, cuGeom, initTuDepth, absPartIdx, true, bUseCachedIntraData, bBestFullResult ? &bestFullResult : NULL, icosts, depthRange);
         totalDistortion += icosts.distortion;
 
-        extractIntraResultQT(cu, *reconYuv, initTuDepth, absPartIdx);
+        if (!bBestFullResult || cu.m_tuDepth[absPartIdx] != initTuDepth)
+            extractIntraResultQT(cu, *reconYuv, initTuDepth, absPartIdx);
 
         // set reconstruction for next intra prediction blocks
         if (puIdx != numPU - 1)
