@@ -643,7 +643,7 @@ void Search::codeCoeffQTChroma(const CUData& cu, uint32_t tuDepth, uint32_t absP
     }
 }
 
-void Search::codeIntraLumaQT(Mode& mode, const CUGeom& cuGeom, uint32_t tuDepth, uint32_t absPartIdx, bool bAllowSplit, Cost& outCost, const uint32_t depthRange[2])
+void Search::codeIntraLumaQT(Mode& mode, const CUGeom& cuGeom, uint32_t tuDepth, uint32_t absPartIdx, bool bAllowSplit, bool bUseCachedIntraData, Cost& outCost, const uint32_t depthRange[2])
 {
     CUData& cu = mode.cu;
     uint32_t fullDepth  = cuGeom.depth + tuDepth;
@@ -677,11 +677,13 @@ void Search::codeIntraLumaQT(Mode& mode, const CUGeom& cuGeom, uint32_t tuDepth,
         int16_t* residual = m_rqt[cuGeom.depth].tmpResiYuv.getLumaAddr(absPartIdx);
         uint32_t stride   = mode.fencYuv->m_size;
 
-        // init availability pattern
         uint32_t lumaPredMode = cu.m_lumaIntraDir[absPartIdx];
-        IntraNeighbors intraNeighbors;
-        initIntraNeighbors(cu, absPartIdx, tuDepth, true, &intraNeighbors);
-        initAdiPattern(cu, cuGeom, absPartIdx, intraNeighbors, lumaPredMode);
+        if (!bUseCachedIntraData)
+        {
+            IntraNeighbors intraNeighbors;
+            initIntraNeighbors(cu, absPartIdx, tuDepth, true, &intraNeighbors);
+            initAdiPattern(cu, cuGeom, absPartIdx, intraNeighbors, lumaPredMode);
+        }
 
         // get prediction signal
         predIntraLumaAng(lumaPredMode, pred, stride, log2TrSize);
@@ -693,7 +695,7 @@ void Search::codeIntraLumaQT(Mode& mode, const CUGeom& cuGeom, uint32_t tuDepth,
         coeff_t* coeffY       = m_rqt[qtLayer].coeffRQT[0] + coeffOffsetY;
 
         // store original entropy coding status
-        if (bEnableRDOQ)
+        if (bEnableRDOQ && !bUseCachedIntraData)
             m_entropyCoder.estBit(m_entropyCoder.m_estBitsSbac, log2TrSize, true);
         primitives.cu[sizeIdx].calcresidual[stride % 64 == 0](fenc, pred, residual, stride);
 
@@ -793,9 +795,9 @@ void Search::codeIntraLumaQT(Mode& mode, const CUGeom& cuGeom, uint32_t tuDepth,
         for (uint32_t qIdx = 0, qPartIdx = absPartIdx; qIdx < 4; ++qIdx, qPartIdx += qNumParts)
         {
             if (checkTransformSkip)
-                codeIntraLumaTSkip(mode, cuGeom, tuDepth + 1, qPartIdx, splitCost);
+                codeIntraLumaTSkip(mode, cuGeom, tuDepth + 1, qPartIdx, false, splitCost);
             else
-                codeIntraLumaQT(mode, cuGeom, tuDepth + 1, qPartIdx, bAllowSplit, splitCost, depthRange);
+                codeIntraLumaQT(mode, cuGeom, tuDepth + 1, qPartIdx, bAllowSplit, false, splitCost, depthRange);
 
             cbf |= cu.getCbf(qPartIdx, TEXT_LUMA, tuDepth + 1);
         }
@@ -848,7 +850,7 @@ void Search::codeIntraLumaQT(Mode& mode, const CUGeom& cuGeom, uint32_t tuDepth,
     outCost.energy     += fullCost.energy;
 }
 
-void Search::codeIntraLumaTSkip(Mode& mode, const CUGeom& cuGeom, uint32_t tuDepth, uint32_t absPartIdx, Cost& outCost)
+void Search::codeIntraLumaTSkip(Mode& mode, const CUGeom& cuGeom, uint32_t tuDepth, uint32_t absPartIdx, bool bUseCachedIntraData, Cost& outCost)
 {
     uint32_t fullDepth = cuGeom.depth + tuDepth;
     uint32_t log2TrSize = cuGeom.log2CUSize - tuDepth;
@@ -872,11 +874,13 @@ void Search::codeIntraLumaTSkip(Mode& mode, const CUGeom& cuGeom, uint32_t tuDep
     uint32_t stride = fencYuv->m_size;
     uint32_t sizeIdx = log2TrSize - 2;
 
-    // init availability pattern
     uint32_t lumaPredMode = cu.m_lumaIntraDir[absPartIdx];
-    IntraNeighbors intraNeighbors;
-    initIntraNeighbors(cu, absPartIdx, tuDepth, true, &intraNeighbors);
-    initAdiPattern(cu, cuGeom, absPartIdx, intraNeighbors, lumaPredMode);
+    if (!bUseCachedIntraData)
+    {
+        IntraNeighbors intraNeighbors;
+        initIntraNeighbors(cu, absPartIdx, tuDepth, true, &intraNeighbors);
+        initAdiPattern(cu, cuGeom, absPartIdx, intraNeighbors, lumaPredMode);
+    }
 
     // get prediction signal
     predIntraLumaAng(lumaPredMode, pred, stride, log2TrSize);
@@ -892,7 +896,7 @@ void Search::codeIntraLumaTSkip(Mode& mode, const CUGeom& cuGeom, uint32_t tuDep
     // store original entropy coding status
     m_entropyCoder.store(m_rqt[fullDepth].rqtRoot);
 
-    if (bEnableRDOQ)
+    if (bEnableRDOQ && !bUseCachedIntraData)
         m_entropyCoder.estBit(m_entropyCoder.m_estBitsSbac, log2TrSize, true);
 
     int checkTransformSkip = 1;
@@ -1813,7 +1817,7 @@ void Search::encodeIntraInInter(Mode& intraMode, const CUGeom& cuGeom)
     m_entropyCoder.load(m_rqt[cuGeom.depth].cur);
 
     Cost icosts;
-    codeIntraLumaQT(intraMode, cuGeom, 0, 0, false, icosts, tuDepthRange);
+    codeIntraLumaQT(intraMode, cuGeom, 0, 0, false, false, icosts, tuDepthRange);
     extractIntraResultQT(cu, *reconYuv, 0, 0);
 
     intraMode.lumaDistortion = icosts.distortion;
@@ -1875,6 +1879,7 @@ sse_t Search::estIntraPredQT(Mode &intraMode, const CUGeom& cuGeom, const uint32
     for (uint32_t puIdx = 0; puIdx < numPU; puIdx++, absPartIdx += qNumParts)
     {
         uint32_t bmode = 0;
+        bool bUseCachedIntraData = false;
 
         if (intraMode.cu.m_lumaIntraDir[puIdx] != (uint8_t)ALL_IDX)
             bmode = intraMode.cu.m_lumaIntraDir[puIdx];
@@ -1972,6 +1977,15 @@ sse_t Search::estIntraPredQT(Mode &intraMode, const CUGeom& cuGeom, const uint32
                     if ((modeCosts[mode] < paddedBcost) || ((uint32_t)mode == mpmModes[0])) 
                         /* choose for R-D analysis only if this mode passes cost threshold or matches MPM[0] */
                         updateCandList(mode, modeCosts[mode], maxCandCount, rdModeList, candCostList);
+
+                /* Reference samples and RDOQ bit estimates are invariant across
+                 * the RDO candidates for this PU. */
+                if (m_param->rdoqLevel && log2TrSize <= 5)
+                {
+                    m_entropyCoder.load(m_rqt[depth].cur);
+                    m_entropyCoder.estBit(m_entropyCoder.m_estBitsSbac, log2TrSize, true);
+                }
+                bUseCachedIntraData = log2TrSize <= 5;
             }
 
             /* measure best candidates using simple RDO (no TU splits) */
@@ -1988,9 +2002,9 @@ sse_t Search::estIntraPredQT(Mode &intraMode, const CUGeom& cuGeom, const uint32
 
                 Cost icosts;
                 if (checkTransformSkip)
-                    codeIntraLumaTSkip(intraMode, cuGeom, initTuDepth, absPartIdx, icosts);
+                    codeIntraLumaTSkip(intraMode, cuGeom, initTuDepth, absPartIdx, bUseCachedIntraData, icosts);
                 else
-                    codeIntraLumaQT(intraMode, cuGeom, initTuDepth, absPartIdx, false, icosts, depthRange);
+                    codeIntraLumaQT(intraMode, cuGeom, initTuDepth, absPartIdx, false, bUseCachedIntraData, icosts, depthRange);
                 COPY2_IF_LT(bcost, icosts.rdcost, bmode, rdModeList[i]);
             }
         }
@@ -2003,9 +2017,9 @@ sse_t Search::estIntraPredQT(Mode &intraMode, const CUGeom& cuGeom, const uint32
 
         Cost icosts;
         if (checkTransformSkip)
-            codeIntraLumaTSkip(intraMode, cuGeom, initTuDepth, absPartIdx, icosts);
+            codeIntraLumaTSkip(intraMode, cuGeom, initTuDepth, absPartIdx, bUseCachedIntraData, icosts);
         else
-            codeIntraLumaQT(intraMode, cuGeom, initTuDepth, absPartIdx, true, icosts, depthRange);
+            codeIntraLumaQT(intraMode, cuGeom, initTuDepth, absPartIdx, true, bUseCachedIntraData, icosts, depthRange);
         totalDistortion += icosts.distortion;
 
         extractIntraResultQT(cu, *reconYuv, initTuDepth, absPartIdx);
