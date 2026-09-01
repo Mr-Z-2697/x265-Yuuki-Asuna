@@ -1113,8 +1113,6 @@ uint32_t Quant::rdoQuant(const CUData& cu, int16_t* dstCoeff, TextType ttype, ui
         X265_CHECK((cgScanPos << MLS_CG_SIZE) == (int)scanPos, "scanPos mistake\n");
         cgRdStats.sigCost0 = costSig[scanPos];
 
-        costCoeffGroupSig[cgScanPos] = 0;
-
         /* nothing to do at this case */
         X265_CHECK(cgLastScanPos >= 0, "cgLastScanPos check failure\n");
 
