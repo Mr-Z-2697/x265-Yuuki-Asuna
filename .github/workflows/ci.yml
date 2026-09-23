@@ -45,7 +45,7 @@ jobs:
   code-quality:
     name: "Code Quality"
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     if: github.event_name == 'pull_request_target'
     steps:
       - name: Checkout PR branch
@@ -2824,15 +2824,17 @@ jobs:
     permissions:
       contents: read
     env:
-      ASSETS_REPO: "https://github.com/Multicorewareinc/x265-test-assets.git"
+      ASSETS_REPO: "Multicorewareinc/x265-test-assets"
     steps:
-      - name: "Clone assets repo (with LFS)"
+      - name: "Download test assets from release"
         run: |
           set -euo pipefail
-          git clone --depth 1 "$ASSETS_REPO" x265-test-assets
-          cd x265-test-assets
-          git lfs install --local
-          git lfs pull
+          mkdir -p x265-test-assets
+          BASE_URL="https://github.com/${ASSETS_REPO}/releases/latest/download"
+          for f in conf.tar.gz decoders-linux.tar.gz decoders-windows.tar.gz goldens-linux.tar.gz goldens-windows.tar.gz sanitizer_videos.tar.gz videos.tar.gz xiph_videos.tar.gz; do
+            curl -fSL --retry 5 --retry-delay 5 --retry-all-errors -C - -o "x265-test-assets/$f" "$BASE_URL/$f"
+          done
+          ls -lh x265-test-assets/
 
       - name: "Validate archive integrity"
         run: |
@@ -2847,7 +2849,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p assets
-          for f in conf.tar.gz decoders-linux.tar.gz decoders-windows.tar.gz goldens-linux.tar.gz goldens-windows.tar.gz smoke-tests.tar.gz videos.tar.gz; do
+          for f in conf.tar.gz decoders-linux.tar.gz decoders-windows.tar.gz goldens-linux.tar.gz goldens-windows.tar.gz videos.tar.gz; do
             src="x265-test-assets/$f"
             if [ ! -f "$src" ]; then
               echo "ERROR: expected smoke asset not found in repo: $f"
@@ -3339,7 +3341,6 @@ jobs:
       DECODER_PATH:     ${{ github.workspace }}/../test-sequences/TAppDecoder_gcc
       TEMP_DIR:         ${{ github.workspace }}/../x265_smoke/test_output/temp
       COREDUMP_DIR:     ${{ github.workspace }}/../x265_smoke/test_output/coredump
-      SMOKE_TESTS_FILE: ${{ github.workspace }}/../x265_smoke/smoke-tests.txt
 
     steps:
       - name: "Create directories"
@@ -3373,7 +3374,6 @@ jobs:
           extract "goldens-linux.tar.gz"  "$GOLDEN_DIR"
           extract "decoders-linux.tar.gz" "$TEST_SEQ_DIR"
           extract "conf.tar.gz"           "$SMOKE_DIR"
-          extract "smoke-tests.tar.gz"    "$SMOKE_DIR"
           chmod +x "$DECODER_PATH"
 
       - name: "Copy and configure conf.py into test-harness"
@@ -3440,7 +3440,7 @@ jobs:
         run: |
           cd "$HARNESS_DIR"
           echo "=== Starting smoke test for build: ${{ matrix.build }} (pre-built binary, --no-make) ==="
-          python3 smoke-test.py -b "${{ matrix.build }}" -t "$SMOKE_TESTS_FILE" --no-make --no-bench
+          python3 smoke-test.py -b "${{ matrix.build }}" --no-make --no-bench
           echo "[OK] Linux smoke test PASSED for ${{ matrix.build }}"
 
       - name: "Set log upload path"
@@ -3493,7 +3493,6 @@ jobs:
       DECODER_PATH:     ${{ github.workspace }}\..\test-sequences\TAppDecoder.exe
       TEMP_DIR:         ${{ github.workspace }}\..\x265_smoke\test_output\temp
       COREDUMP_DIR:     ${{ github.workspace }}\..\x265_smoke\test_output\coredump
-      SMOKE_TESTS_FILE: ${{ github.workspace }}\..\x265_smoke\smoke-tests.txt
 
     steps:
       - name: "Create directories"
@@ -3528,7 +3527,6 @@ jobs:
           extract "goldens-windows.tar.gz"  "$GOLDEN_DIR"
           extract "decoders-windows.tar.gz" "$TEST_SEQ_DIR"
           extract "conf.tar.gz"             "$SMOKE_DIR"
-          extract "smoke-tests.tar.gz"      "$SMOKE_DIR"
 
       - name: "Find vcvarsall.bat"
         run: |
@@ -3637,8 +3635,7 @@ jobs:
         run: |
           cd "$HARNESS_DIR"
           echo "=== Starting smoke test for build: ${{ matrix.build }} (pre-built binary, --no-make) ==="
-          WIN_SMOKE_TESTS_FILE=$(cygpath -m "$SMOKE_TESTS_FILE")
-          python3 smoke-test.py -b "${{ matrix.build }}" -t "$WIN_SMOKE_TESTS_FILE" --no-make --no-bench
+          python3 smoke-test.py -b "${{ matrix.build }}" --no-make --no-bench
           echo "[OK] Windows smoke test PASSED for ${{ matrix.build }}"
 
       - name: "Set log upload path"
