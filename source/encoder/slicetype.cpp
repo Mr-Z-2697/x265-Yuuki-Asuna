@@ -3930,39 +3930,39 @@ void Lookahead::cuTree(Lowres **frames, int numframes, bool bIntra)
                 if (i != middle)
                 {
                     estGroup.singleCost(p0, p1, i);
-                    estimateCUPropagate(frames, p0, p1, i, 0);
+                    estimateCUPropagate(frames, averageDuration, p0, p1, i, 0);
                 }
                 i--;
             }
 
-            estimateCUPropagate(frames, curnonb, lastnonb, middle, 1);
+            estimateCUPropagate(frames, averageDuration, curnonb, lastnonb, middle, 1);
         }
         else
         {
             while (i > curnonb)
             {
                 estGroup.singleCost(curnonb, lastnonb, i);
-                estimateCUPropagate(frames, curnonb, lastnonb, i, 0);
+                estimateCUPropagate(frames, averageDuration, curnonb, lastnonb, i, 0);
                 i--;
             }
         }
-        estimateCUPropagate(frames, curnonb, lastnonb, lastnonb, 1);
+        estimateCUPropagate(frames, averageDuration, curnonb, lastnonb, lastnonb, 1);
         lastnonb = curnonb;
     }
 
     if (!m_param->lookaheadDepth)
     {
         estGroup.singleCost(0, lastnonb, lastnonb);
-        estimateCUPropagate(frames, 0, lastnonb, lastnonb, 1);
+        estimateCUPropagate(frames, averageDuration, 0, lastnonb, lastnonb, 1);
         std::swap(frames[lastnonb]->propagateCost, frames[0]->propagateCost);
     }
 
-    cuTreeFinish(frames[lastnonb], lastnonb);
+    cuTreeFinish(frames[lastnonb], averageDuration, lastnonb);
     if (m_param->bBPyramid && bframes > 1 && !m_param->rc.vbvBufferSize)
-        cuTreeFinish(frames[lastnonb + (bframes + 1) / 2], 0);
+        cuTreeFinish(frames[lastnonb + (bframes + 1) / 2], averageDuration, 0);
 }
 
-void Lookahead::estimateCUPropagate(Lowres **frames, int p0, int p1, int b, int referenced)
+void Lookahead::estimateCUPropagate(Lowres **frames, double averageDuration, int p0, int p1, int b, int referenced)
 {
     uint16_t *refCosts[2] = { frames[p0]->propagateCost, frames[p1]->propagateCost };
     int32_t distScaleFactor = (((b - p0) << 8) + ((p1 - p0) >> 1)) / (p1 - p0);
@@ -4067,10 +4067,10 @@ void Lookahead::estimateCUPropagate(Lowres **frames, int p0, int p1, int b, int 
     }
 
     if (m_param->rc.vbvBufferSize && m_param->lookaheadDepth && referenced)
-        cuTreeFinish(frames[b], b == p1 ? b - p0 : 0);
+        cuTreeFinish(frames[b], averageDuration, b == p1 ? b - p0 : 0);
 }
 
-void Lookahead::computeCUTreeQpOffset(Lowres *frame, int ref0Distance)
+void Lookahead::computeCUTreeQpOffset(Lowres *frame, double averageDuration, int ref0Distance)
 {
     int fpsFactor = (int)(CLIP_DURATION(averageDuration) / CLIP_DURATION(frame->dispDurationSecs) * 256);
     uint32_t loopIncr = (m_param->rc.qgSize == 8) ? 8 : 16;
@@ -4210,15 +4210,15 @@ void Lookahead::computeCUTreeQpOffset(Lowres *frame, int ref0Distance)
     }
 }
 
-void Lookahead::cuTreeFinish(Lowres *frame, int ref0Distance)
+void Lookahead::cuTreeFinish(Lowres *frame, double averageDuration, int ref0Distance)
 {
     if (m_param->rc.hevcAq)
     {
-        computeCUTreeQpOffset(frame, ref0Distance);
+        computeCUTreeQpOffset(frame, averageDuration, ref0Distance);
     }
     else
     {
-        int fpsFactor = 256;
+        int fpsFactor = (int)(CLIP_DURATION(averageDuration) / CLIP_DURATION((double)m_param->fpsDenom / m_param->fpsNum) * 256);
         double weightdelta = 0.0;
 
         if (ref0Distance && frame->weightedCostDelta[ref0Distance - 1] > 0)
