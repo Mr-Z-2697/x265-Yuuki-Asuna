@@ -542,7 +542,8 @@ frame counts) are only applicable to the CLI application.
 
 .. option:: --fps <integer|float|numerator/denominator>
 
-	YUV only: Source frame rate
+	YUV only: Display frame rate. The reciprocal of the value defines
+	the duration of a clock tick in seconds.
 
 	**Range of values:** positive int or float, or num/denom
 
@@ -557,6 +558,27 @@ frame counts) are only applicable to the CLI application.
 	must be field dimensions and the FPS must be in units of fields per
 	second. The decoder must re-combine the fields in their correct
 	orientation for display.
+
+	If the source pictures are interlaced frames, with both fields woven
+	into each picture (the usual layout of interlaced YUV and Y4M files),
+	also use :option:`--field`. In that case the source dimensions and FPS
+	are those of the frames, not the fields.
+
+	The stream is signalled as a field sequence: field_seq_flag is set in
+	the VUI, the profile_tier_level marks the source as interlaced, and
+	every picture carries a picture timing SEI with source_scan_type 0
+	(interlaced) and a pic_struct that gives the parity of the field and
+	the frame it belongs to (H.265 Table D.2): 11 for the top and 10 for
+	the bottom field of a top-field-first frame, 12 for the bottom and 9
+	for the top field of a bottom-field-first frame. With :option:`--field`
+	the frame is the input frame; with field input, pictures 2n and 2n+1
+	are taken as the two fields of one frame. Field input must therefore
+	hold whole frames, an even number of fields starting with a first
+	field, also after :option:`--seek` and :option:`--frames`. Otherwise
+	fields of different frames are signalled as pairs, or the last field
+	as paired with a next field that is not in the stream. This describes
+	interlaced content, not a progressive frame carried as two fields
+	(PsF), which would need source_scan_type 1.
 
 .. option:: --frame-dup, --no-frame-dup
 
@@ -622,7 +644,21 @@ frame counts) are only applicable to the CLI application.
 
 .. option:: --field, --no-field
 
-	Enable or disable field coding. Default disabled.
+	Treat each input picture as an interlaced frame and split it into its
+	two fields before encoding. Requires :option:`--interlace`, which sets
+	the field order: the first field is the top field for tff and the
+	bottom field for bff. The source dimensions and FPS are those of the
+	frames; the encoder codes twice as many pictures at half the height.
+
+	Without :option:`--field`, the input must already be fields, as
+	described for :option:`--interlace`.
+
+	The split into fields is done by the x265 CLI. Applications using the
+	library must pass fields and set ``fieldNum`` in each
+	:c:type:`x265_picture` (1 for the first field, 2 for the second).
+	If ``fieldNum`` is left at 0, the even POC is taken as the first field,
+	as for field input.
+	Default disabled.
 	
 Profile, Level, Tier
 ====================
@@ -1496,15 +1532,18 @@ Slice decision options
 
 .. option:: --keyint, -I <integer>
 
-	Max intra period in frames. A special case of infinite-gop (single
+	Max intra period in clock ticks. A special case of infinite-gop (single
 	keyframe at the beginning of the stream) can be triggered with
 	argument -1. Use 1 to force all-intra. When intra-refresh is enabled
 	it specifies the interval between which refresh sweeps happen. Default 250
 
+	A frame is a single clock tick in constant frame rate streams. With
+	:option:`--pic-struct`, :option:`--psfile` or :option:`--frame-dup`, a frame can last up to 3 clock ticks.
+
 .. option:: --min-keyint, -i <integer>
 
-	Minimum GOP size. Scenecuts beyond this interval are coded as IDR and start
-	a new keyframe, while scenecuts closer together are coded as I or P. For
+	Minimum GOP size, in clock ticks. Scenecuts beyond this interval are coded
+	as new keyframes, while scenecuts closer together are coded as I or P. For
 	fixed keyframe interval, set value to be equal to keyint.
 
 	**Range of values:** >=0 (0: auto)
@@ -1550,11 +1589,13 @@ Slice decision options
 
 .. option:: --intra-refresh
 
-	Enables Periodic Intra Refresh(PIR) instead of keyframe insertion.
-	PIR can replace keyframes by inserting a column of intra blocks in 
+	Enables Periodic Intra Refresh (PIR) instead of keyframe insertion.
+	PIR can replace keyframes by inserting a column of intra blocks in
 	non-keyframes, that move across the video from one side to the other
-	and thereby refresh the image but over a period of multiple 
+	and thereby refresh the image but over a period of multiple
 	frames instead of a single keyframe.
+
+	The size of a frame's intra column depends on its duration in ticks.
 
 .. option:: --rc-lookahead <integer>
 
@@ -2536,14 +2577,32 @@ VUI fields must be manually specified.
 
 	Set the picture structure and emits it in the picture timing SEI message.
 	Values in the range 0..12. See D.3.3 of the HEVC spec. for a detailed explanation.
-	Required for HLG (Hybrid Log Gamma) signaling. Not signaled by default.
+
+	Ignored with :option:`--interlace`, which sets pic_struct from the field
+	order. Requires :option:`--hrd`.
+
+.. option:: --psfile <filename>
+
+	Specify a text file which contains the picture structure for some or all frames.
+	Allows for dynamic pulldown (VFR in CFR containers). The format of each line is
+
+	framenumber framefieldcoding picstruct
+
+	Framefieldcoding shall be 0, 1, 2 (progressive, bottom-first or top-first, resp.),
+	It shall not change for an encoded sequence and match the encoder configuration.
+
+	Picstruct is the structure to specify in the framenumber's Picture Timing SEI.
+	It shall be compatible with the encoder configuration for the given sequence.
+	Unspecified framenumbers get a default structure (single frame or field).
+
+	Requires :option:`--hrd`.
 
 .. option:: --video-signal-type-preset <string>
 
 	Specify combinations of color primaries, transfer characteristics, color matrix,
 	range of luma and chroma signals, and chroma sample location.
 	String format: <system-id>[:<color-volume>]
-	
+
 	This has higher precedence than individual VUI parameters. If any individual VUI option
 	is specified together with this, which changes the values set corresponding to the system-id
 	or color-volume, it will be discarded.
@@ -2657,7 +2716,7 @@ Bitstream options
 	Picture Timing SEI messages providing timing information to the
 	decoder. Default disabled
 
-    	
+
 .. option:: --hrd-concat, --no-hrd-concat
 
     Set concatenation flag for the first keyframe in the HRD buffering period SEI. This
@@ -2766,6 +2825,36 @@ Bitstream options
 
 	Emit SEI messages in a single NAL unit instead of multiple NALs. Default disabled.
 	When HRD SEI is enabled the HM decoder will throw a warning.
+
+.. option:: --frame-packing <integer>
+
+	Emit the frame packing arrangement SEI message (H.265 D.2.16, D.3.16) that
+	tells the decoder how the two views of a stereoscopic video are packed into
+	the coded pictures. Frame 0 is always the left view. The values are those
+	that H.265 defines (Table D.8), any other value is an error:
+
+	3. Side by side: the left view is on the left, the right view on the right.
+	4. Top and bottom: the left view is on top, the right view on the bottom.
+	5. Temporal interleaving: alternate frames in output order are the left
+	   and right views.
+
+	Types 3 and 4 write the message with each IRAP picture, and with
+	:option:`--intra-refresh` also with the first picture of each refresh cycle,
+	as x264 does. It persists until the next one or the end of the coded video
+	sequence. Type 5 writes it with every picture, because
+	current_frame_is_frame0_flag alternates with the frame. The first encoded
+	picture is the left view, so an odd :option:`--seek` swaps the views.
+	With :option:`--interlace` both fields of a frame belong to the same view,
+	whether the input pictures are already fields or :option:`--field` splits
+	each input frame into fields. With :option:`--frame-dup` the view follows
+	the input picture, so a dropped duplicate does not swap the views of the
+	pictures after it.
+
+	The message is written on the base layer only, so with :option:`--alpha` the
+	alpha layer does not carry it. It cannot be combined with
+	:option:`--num-views` greater than 1: each layer is then a full view and the
+	message would describe it as packed, so x265 gives an error.
+	The source must already be packed this way, x265 only signals it. Default disabled.
 
 .. option:: --film-grain <filename>
 

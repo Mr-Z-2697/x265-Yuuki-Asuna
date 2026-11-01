@@ -498,9 +498,11 @@ typedef struct x265_picture
     //Dolby Vision RPU metadata
     x265_dolby_vision_rpu rpu;
 
+    /* Field number when bField and interlaceMode are set: 1 for the first field
+     * of a frame, 2 for the second */
     int fieldNum;
 
-    //SEI picture structure message
+    /* Pic Timing SEI picture structure signaling. See PicStruct enumeration */
     uint32_t picStruct;
 
     int    width;
@@ -1723,17 +1725,17 @@ typedef struct x265_param
     /* Interal value indicating if crqpoffs is set by the user. */
     int       crQpOffsetSet;
 
-	/* Specifies the preferred transfer characteristics syntax element in the
-	 * alternative transfer characteristics SEI message (see. D.2.38 and D.3.38 of
-	 * JCTVC-W1005 http://phenix.it-sudparis.eu/jct/doc_end_user/documents/23_San%20Diego/wg11/JCTVC-W1005-v4.zip
-	 * */
-	int       preferredTransferCharacteristics;
-	
-	/*
-	 * Specifies the value for the pic_struc syntax element of the picture timing SEI message (See D2.3 and D3.3)
-	 * of the HEVC spec. for a detailed explanation
-	 * */
-	int       pictureStructure;	
+    /* Specifies the preferred transfer characteristics syntax element in the
+     * alternative transfer characteristics SEI message (see. D.2.38 and D.3.38 of
+     * JCTVC-W1005 http://phenix.it-sudparis.eu/jct/doc_end_user/documents/23_San%20Diego/wg11/JCTVC-W1005-v4.zip
+     * */
+    int       preferredTransferCharacteristics;
+
+    /*
+     * Specifies the value for the pic_struc syntax element of the picture timing SEI message (See D2.3 and D3.3)
+     * of the HEVC spec. for a detailed explanation
+     * */
+    int       pictureStructure;
 
     int opts;
 
@@ -2230,7 +2232,12 @@ typedef struct x265_param
        Re-init RC history at that point in ABR mode. Default is disabled. */
     int       bEnableFades;
 
-    /* Enable field coding */
+    /* Enable field coding of interlaced input. With the x265 CLI, each input
+     * picture is an interlaced frame that the CLI splits into its two fields.
+     * Applications using the library must pass fields and set fieldNum in each
+     * x265_picture; pic_struct is then derived from fieldNum instead of the
+     * POC, which is still used for pictures with fieldNum 0. Requires
+     * interlaceMode. Default disabled */
     int bField;
 
     /*Emit content light level info SEI*/
@@ -2238,8 +2245,8 @@ typedef struct x265_param
 
     /*
     * Signals picture structure SEI timing message for every frame
-    * picture structure 7 is signalled for frame doubling
-    * picture structure 8 is signalled for frame tripling
+    * picture structure 7 is signalled for frame doubling (PIC_STRUCT_DOUBLING)
+    * picture structure 8 is signalled for frame tripling (PIC_STRUCT_TRIPLING)
     * */
     int       bEnableFrameDuplication;
 
@@ -2442,6 +2449,20 @@ typedef struct x265_param
      * When set, overrides foveaGazeX/foveaGazeY with per-frame values.
      * NULL = use static gaze from foveaGazeX/foveaGazeY. */
     char* foveaGazeFile;
+
+    /* Frame packing arrangement SEI message (H.265 D.2.16): the 3D layout of the
+     * source frames. 3 = side by side, 4 = top and bottom (frame 0 is the left view),
+     * 5 = temporal interleaving (alternate frames are the left and right views).
+     * The first encoded picture is the left view, so an odd --seek swaps the views.
+     * With interlaceMode both fields of a frame belong to the same view. With
+     * bEnableFrameDuplication the view follows the input picture, so a dropped
+     * duplicate does not swap the views of the pictures after it.
+     * Other values are an error.
+     * Types 3 and 4 write the message with each IRAP picture and, with
+     * bIntraRefresh, with the first picture of each refresh cycle; type 5 with
+     * every picture. It is written on the base layer only and cannot be combined with
+     * numViews > 1. Default -1 (disabled). */
+    int      framePacking;
 } x265_param;
 
 /* x265_param_alloc:
@@ -2853,6 +2874,27 @@ static const char * const x265_api_query_errnames[] = {
     "unable to bind x265_api_query from libx265",
     "libx265 has an invalid bitdepth"
 };
+
+/* Picture Structure conveyed in Pic Timing SEI.
+ * The enumeration is defined in H.265 Table D.2 */
+typedef enum
+{
+    PIC_STRUCT_PROGRESSIVE_FRAME = 0,
+    PIC_STRUCT_FIELD_TOP    = 1,
+    PIC_STRUCT_FIELD_BOTTOM = 2,
+    PIC_STRUCT_TOP_BOTTOM   = 3,
+    PIC_STRUCT_BOTTOM_TOP   = 4,
+    PIC_STRUCT_TOP_BOTTOM_TOP    = 5,
+    PIC_STRUCT_BOTTOM_TOP_BOTTOM = 6,
+    PIC_STRUCT_DOUBLING    = 7,
+    PIC_STRUCT_TRIPLING    = 8,
+    PIC_STRUCT_TOP_PREVBOTTOM = 9,
+    PIC_STRUCT_BOTTOM_PREVTOP = 10,
+    PIC_STRUCT_TOP_NEXTBOTTOM = 11,
+    PIC_STRUCT_BOTTOM_NEXTTOP = 12,
+    PIC_STRUCT_COUNT,
+    PIC_STRUCT_AUTO = PIC_STRUCT_PROGRESSIVE_FRAME,
+} PicStruct;
 
 #ifdef __cplusplus
 }

@@ -1082,11 +1082,13 @@ int32_t Lookahead::estimateNoise(Frame* curFrame)
     return (int32_t)((sum * 82137) / (6 * num * (1 << (X265_DEPTH - 8))));
 }
 
-Lookahead::Lookahead(x265_param *param, ThreadPool* pool)
+Lookahead::Lookahead(x265_param *param, ThreadPool* pool, SPS* sps)
 {
     m_param = param;
     m_pool  = pool;
+    m_sps = sps;
 
+    m_numPools = 0;
     m_lastNonB = NULL;
     m_isSceneTransition = false;
     m_scratch        = NULL;
@@ -1111,11 +1113,15 @@ Lookahead::Lookahead(x265_param *param, ThreadPool* pool)
     m_origPicBuf = 0;
     m_metld = NULL;
 
+    m_codedPicCount = 0;
+    m_cpbDelay = 0;
+
     /* Allow the strength to be adjusted via qcompress, since the two concepts
      * are very similar. */
     m_cuTreeStrength = (m_param->rc.hevcAq ? 6.0 : 5.0) * (1.0 - m_param->rc.qCompress);
 
     m_lastKeyframe = -m_param->keyframeMax;
+    m_lastKeyframeNum = -m_param->keyframeMax;
     m_sliceTypeBusy = false;
     m_fullQueueSize = X265_MAX(1, m_param->lookaheadDepth);
     m_bAdaptiveQuant = m_param->rc.aqMode ||
@@ -1188,6 +1194,8 @@ Lookahead::Lookahead(x265_param *param, ThreadPool* pool)
     m_countFramecosts = 0;
     m_countTemporalFilter = 0;
 #endif
+
+    memset(m_frameVariance, 0, sizeof(m_frameVariance));
 
     m_accHistDiffRunningAvgCb = X265_MALLOC(uint32_t*, NUMBER_OF_SEGMENTS_IN_WIDTH * sizeof(uint32_t*));
     m_accHistDiffRunningAvgCb[0] = X265_MALLOC(uint32_t, NUMBER_OF_SEGMENTS_IN_WIDTH * NUMBER_OF_SEGMENTS_IN_HEIGHT);
@@ -2028,6 +2036,8 @@ void Lookahead::slicetypeDecide()
     PreLookaheadGroup pre(*this);
     Lowres* frames[X265_LOOKAHEAD_MAX + X265_BFRAME_MAX + 4];
     Frame*  list[X265_BFRAME_MAX + 4];
+    Frame*  refLowres[X265_LOOKAHEAD_MAX + X265_BFRAME_MAX + 4];
+    memset(refLowres, 0, sizeof(refLowres));
     memset(frames, 0, sizeof(frames));
     memset(list, 0, sizeof(list));
     int maxSearch = X265_MIN(m_param->lookaheadDepth, X265_LOOKAHEAD_MAX);
@@ -2062,7 +2072,9 @@ void Lookahead::slicetypeDecide()
         for (j = 0; j < maxSearch; j++)
         {
             if (!curFrame) break;
+            setDurationsToLowres(curFrame);
             frames[j + 1] = &curFrame->m_lowres;
+            refLowres[j] = curFrame;
 
             if (!curFrame->m_lowresInit)
                 pre.m_preframes[pre.m_jobTotal++] = curFrame;
@@ -2094,7 +2106,7 @@ void Lookahead::slicetypeDecide()
         {
             if (m_frameVariance[k]  == -1)
                 break;
-            if((k > 0 && m_frameVariance[k] >= m_frameVariance[k - 1]) || 
+            if((k > 0 && m_frameVariance[k] >= m_frameVariance[k - 1]) ||
                 (k == 0 && m_frameVariance[k] >= m_frameVariance[length - 1]))
             {
                 m_isFadeIn = true;
@@ -2136,6 +2148,12 @@ void Lookahead::slicetypeDecide()
          m_param->rc.cuTree || m_param->scenecutThreshold || m_param->bHistBasedSceneCut ||
          (m_param->lookaheadDepth && m_param->rc.vbvBufferSize)))
     {
+        /* post-poned because the lowres struct gets overwritten by the prelookahead */
+        for (int j = 0; j < maxSearch && refLowres[j]; j++)
+        {
+            setDurationsToLowres(refLowres[j]);
+        }
+
         if (!m_param->rc.bStatRead)
             slicetypeAnalyse(frames, false);
         bool bIsVbv = m_param->rc.vbvBufferSize > 0 && m_param->rc.vbvMaxBitrate > 0;
@@ -2159,6 +2177,11 @@ void Lookahead::slicetypeDecide()
         for (bframes = 0, brefs = 0;; bframes++)
         {
             Lowres& frm = list[bframes]->m_lowres;
+            /* frame timing. duration must be accounted for else a keyframe limit could be overshoot
+             * during the display of the said frame. */
+            int64_t displayPicCount = (int64_t)list[bframes]->m_displayPicCount;
+            int64_t durationPicCount = (int64_t)list[bframes]->m_duration;
+            int64_t keyintTicksDelta = displayPicCount - m_lastKeyframe + durationPicCount;
 
             if (frm.sliceTypeReq != X265_TYPE_AUTO && frm.sliceTypeReq != frm.sliceType)
                 frm.sliceType = frm.sliceTypeReq;
@@ -2178,8 +2201,8 @@ void Lookahead::slicetypeDecide()
                 x265_log(m_param, X265_LOG_WARNING, "B-ref at frame %d incompatible with B-pyramid and %d reference frames\n",
                     frm.sliceType, m_param->maxNumReferences);
             }
-            if (((!m_param->bIntraRefresh || frm.frameNum == 0) && frm.frameNum - m_lastKeyframe >= m_param->keyframeMax &&
-                (!m_extendGopBoundary || frm.frameNum - m_lastKeyframe >= m_param->keyframeMax + m_param->gopLookahead)) ||
+            if (((!m_param->bIntraRefresh || frm.frameNum == 0) && keyintTicksDelta > m_param->keyframeMax &&
+                (!m_extendGopBoundary || keyintTicksDelta > m_param->keyframeMax + m_param->gopLookahead)) ||
                 (frm.frameNum == (m_param->chunkStart - 1)) || (frm.frameNum == m_param->chunkEnd))
             {
                 if (frm.sliceType == X265_TYPE_AUTO || frm.sliceType == X265_TYPE_I)
@@ -2207,11 +2230,12 @@ void Lookahead::slicetypeDecide()
                         frm.sliceType = X265_TYPE_IDR;
                 }
             }
-            if ((frm.sliceType == X265_TYPE_I && frm.frameNum - m_lastKeyframe >= m_param->keyframeMin) || (frm.frameNum == (m_param->chunkStart - 1)) || (frm.frameNum == m_param->chunkEnd))
+            if ((frm.sliceType == X265_TYPE_I && keyintTicksDelta > m_param->keyframeMin) || (frm.frameNum == (m_param->chunkStart - 1)) || (frm.frameNum == m_param->chunkEnd))
             {
                 if (m_param->bOpenGOP)
                 {
-                    m_lastKeyframe = frm.frameNum;
+                    m_lastKeyframe = displayPicCount;
+                    m_lastKeyframeNum = frm.frameNum;
                     frm.bKeyframe = true;
                 }
                 else
@@ -2226,7 +2250,8 @@ void Lookahead::slicetypeDecide()
             if (frm.sliceType == X265_TYPE_IDR)
             {
                 /* Closed GOP */
-                m_lastKeyframe = frm.frameNum;
+                m_lastKeyframe = displayPicCount;
+                m_lastKeyframeNum = frm.frameNum;
                 frm.bKeyframe = true;
                 int zoneRadl = 0;
                 if (m_param->bResetZoneConfig)
@@ -2270,12 +2295,15 @@ void Lookahead::slicetypeDecide()
         for (bframes = 0, brefs = 0;; bframes++)
         {
             Lowres& frm = list[bframes]->m_lowres;
+            int64_t keyintTicksDelta = (int64_t)list[bframes]->m_displayPicCount - m_lastKeyframe + list[bframes]->m_duration;
+
             if (frm.sliceType == X265_TYPE_BREF)
                 brefs++;
-            if ((IS_X265_TYPE_I(frm.sliceType) && frm.frameNum - m_lastKeyframe >= m_param->keyframeMin)
+            if ((IS_X265_TYPE_I(frm.sliceType) && keyintTicksDelta > m_param->keyframeMin)
                 || (frm.frameNum == (m_param->chunkStart - 1)) || (frm.frameNum == m_param->chunkEnd))
             {
-                m_lastKeyframe = frm.frameNum;
+                m_lastKeyframe = list[bframes]->m_displayPicCount;
+                m_lastKeyframeNum = frm.frameNum;
                 frm.bKeyframe = true;
             }
             if (!IS_X265_TYPE_B(frm.sliceType))
@@ -2347,6 +2375,9 @@ void Lookahead::slicetypeDecide()
 
     if (m_param->bEnableTemporalSubLayers > 2)
     {
+        int codedFrameOrderedIndex[X265_BFRAME_MAX+1];
+        int codedCount = 0; /* running index into codedFrameOrderedIndex across all (sub) mini-GOPs */
+
         //Split the partial mini GOP into sub mini GOPs when temporal sub layers are enabled
         if (bframes < m_param->bframes)
         {
@@ -2419,6 +2450,7 @@ void Lookahead::slicetypeDecide()
 
                     int idx = 0;
                     /* add non-B to output queue */
+                    codedFrameOrderedIndex[codedCount++] = newbFrames;
                     list[newbFrames]->m_reorderedPts = pts[idx++];
                     list[newbFrames]->m_gopOffset = 0;
                     list[newbFrames]->m_gopId = gopId;
@@ -2434,10 +2466,10 @@ void Lookahead::slicetypeDecide()
                             continue;
 
                         // Assign gop offset and temporal layer of frames
+                        codedFrameOrderedIndex[codedCount++] = offset;
                         list[offset]->m_gopOffset = j;
-                        list[bframes]->m_gopId = gopId;
+                        list[offset]->m_gopId = gopId;
                         list[offset]->m_tempLayer = x265_gop_ra[gopId][j++].layer;
-
                         list[offset]->m_reorderedPts = pts[idx++];
                         m_outputQueue.pushBack(*list[offset]);
                         i++;
@@ -2503,6 +2535,7 @@ void Lookahead::slicetypeDecide()
                 m_inputLock.release();
 
                 m_lastNonB = &list[newbFrames]->m_lowres;
+                codedFrameOrderedIndex[codedCount++] = newbFrames;
                 list[newbFrames]->m_reorderedPts = pts[idx++];
                 list[newbFrames]->m_gopOffset = 0;
                 list[newbFrames]->m_gopId = -1;
@@ -2514,6 +2547,7 @@ void Lookahead::slicetypeDecide()
                     {
                         if (list[i]->m_lowres.sliceType == X265_TYPE_BREF)
                         {
+                            codedFrameOrderedIndex[codedCount++] = i;
                             list[i]->m_reorderedPts = pts[idx++];
                             list[i]->m_gopOffset = 0;
                             list[i]->m_gopId = -1;
@@ -2529,6 +2563,7 @@ void Lookahead::slicetypeDecide()
                     /* push all the B frames into output queue except B-ref, which already pushed into output queue */
                     if (list[i]->m_lowres.sliceType != X265_TYPE_BREF)
                     {
+                        codedFrameOrderedIndex[codedCount++] = i;
                         list[i]->m_reorderedPts = pts[idx++];
                         list[i]->m_gopOffset = 0;
                         list[i]->m_gopId = -1;
@@ -2592,6 +2627,7 @@ void Lookahead::slicetypeDecide()
 
             int idx = 0;
             /* add non-B to output queue */
+            codedFrameOrderedIndex[codedCount++] = bframes;
             list[bframes]->m_reorderedPts = pts[idx++];
             list[bframes]->m_gopOffset = 0;
             list[bframes]->m_gopId = m_gopId;
@@ -2611,9 +2647,21 @@ void Lookahead::slicetypeDecide()
                 list[offset]->m_tempLayer = x265_gop_ra[m_gopId][j++].layer;
 
                 /* add B frames to output queue */
+                codedFrameOrderedIndex[codedCount++] = offset;
                 list[offset]->m_reorderedPts = pts[idx++];
                 m_outputQueue.pushBack(*list[offset]);
                 i++;
+            }
+        }
+
+        /* Compute HRD CpbDpb delays */
+        {
+            Frame *prevFrame = NULL;
+            X265_CHECK(codedCount == bframes + 1, "coded order covers %d of %d frames\n", codedCount, bframes + 1);
+            for (int i = 0; i < codedCount; ++i)
+            {
+                calculateDurations(list[codedFrameOrderedIndex[i]], prevFrame);
+                prevFrame = list[codedFrameOrderedIndex[i]];
             }
         }
 
@@ -2626,12 +2674,13 @@ void Lookahead::slicetypeDecide()
             int j;
             for (j = 0; j < maxSearch; j++)
             {
+                setDurationsToLowres(curFrame);
                 frames[j + 1] = &curFrame->m_lowres;
                 curFrame = curFrame->m_next;
             }
             m_inputLock.release();
-
             frames[j + 1] = NULL;
+
             if (!m_param->rc.bStatRead)
                 slicetypeAnalyse(frames, true);
             bool bIsVbv = m_param->rc.vbvBufferSize > 0 && m_param->rc.vbvMaxBitrate > 0;
@@ -2722,6 +2771,7 @@ void Lookahead::slicetypeDecide()
          * in the output queue. The order is important because Frame can
          * only be in one list at a time */
         int64_t pts[X265_BFRAME_MAX + 1];
+        int codedFrameOrderedIndex[X265_BFRAME_MAX + 1];
         for (int i = 0; i <= bframes; i++)
         {
             Frame *curFrame;
@@ -2733,8 +2783,9 @@ void Lookahead::slicetypeDecide()
 
         m_outputLock.acquire();
 
-        /* add non-B to output queue */
         int idx = 0;
+        /* add non-B to output queue */
+        codedFrameOrderedIndex[idx] = bframes;
         list[bframes]->m_reorderedPts = pts[idx++];
         m_outputQueue.pushBack(*list[bframes]);
 
@@ -2745,6 +2796,7 @@ void Lookahead::slicetypeDecide()
             {
                 if (list[i]->m_lowres.sliceType == X265_TYPE_BREF)
                 {
+                    codedFrameOrderedIndex[idx] = i;
                     list[i]->m_reorderedPts = pts[idx++];
                     m_outputQueue.pushBack(*list[i]);
                 }
@@ -2757,11 +2809,21 @@ void Lookahead::slicetypeDecide()
             /* push all the B frames into output queue except B-ref, which already pushed into output queue */
             if (list[i]->m_lowres.sliceType != X265_TYPE_BREF)
             {
+                codedFrameOrderedIndex[idx] = i;
                 list[i]->m_reorderedPts = pts[idx++];
                 m_outputQueue.pushBack(*list[i]);
             }
         }
 
+        /* Compute HRD CpbDpb delays */
+        {
+            Frame *prevFrame = NULL;
+            for (int i = 0; i <= bframes; ++i)
+            {
+                calculateDurations(list[codedFrameOrderedIndex[i]], prevFrame);
+                prevFrame = list[codedFrameOrderedIndex[i]];
+            }
+        }
 
         bool isKeyFrameAnalyse = (m_param->rc.cuTree || (m_param->rc.vbvBufferSize && m_param->lookaheadDepth));
         if (isKeyFrameAnalyse && IS_X265_TYPE_I(m_lastNonB->sliceType))
@@ -2772,12 +2834,13 @@ void Lookahead::slicetypeDecide()
             int j;
             for (j = 0; j < maxSearch; j++)
             {
+                setDurationsToLowres(curFrame);
                 frames[j + 1] = &curFrame->m_lowres;
                 curFrame = curFrame->m_next;
             }
             m_inputLock.release();
-
             frames[j + 1] = NULL;
+
             if (!m_param->rc.bStatRead)
                 slicetypeAnalyse(frames, true);
             bool bIsVbv = m_param->rc.vbvBufferSize > 0 && m_param->rc.vbvMaxBitrate > 0;
@@ -2796,6 +2859,59 @@ void Lookahead::slicetypeDecide()
 
         m_outputLock.release();
     }
+}
+
+void Lookahead::calculateDurations(Frame *frame, Frame *prevFrame)
+{
+    frame->m_cpbDelay = m_cpbDelay;
+    frame->m_cpbDuration = frame->m_duration;
+    frame->m_codedPicCount = m_codedPicCount;
+
+    int dpbDelay = (int)((int64_t)frame->m_displayPicCount - (int64_t)m_codedPicCount);
+    /* largest re-ordering at highest temporal layer */
+    dpbDelay += ((m_param->bframes > 0) ? 1 : 0) + m_sps->numReorderPics[m_sps->maxTempSubLayers - 1];
+
+    if (dpbDelay < 0)
+    {
+        frame->m_cpbDelay += dpbDelay;
+        frame->m_dpbDelay = 0;
+
+        /* Bref and next B-frame cpbRemovalDelay can be equal on long sequence of doubling or tripling.
+         * larger m_dpbDelay offset could solve this, but numReorder+1 is the max allowed on UHD BD.
+         * To avoid two access units with the same cpb removal time, shift prior frame back by a tick. */
+        if (prevFrame && (prevFrame->m_cpbDelay == frame->m_cpbDelay))
+        {
+            prevFrame->m_cpbDelay -= 1;
+            prevFrame->m_dpbDelay += 1;
+        }
+    }
+    else
+    {
+        frame->m_dpbDelay = (uint32_t)dpbDelay;
+    }
+
+    setDurationsToLowres(frame);
+
+    /* Buffering Period SEI (attached with the keyframe) */
+    if (!m_param->bIntraRefresh && frame->m_lowres.bKeyframe)
+    {
+        m_cpbDelay = 0;
+    }
+
+    m_cpbDelay += frame->m_cpbDuration;
+    m_codedPicCount += frame->m_duration;
+}
+
+void Lookahead::setDurationsToLowres(Frame *frame)
+{
+    frame->m_lowres.dispPicCount = frame->m_displayPicCount;
+    frame->m_lowres.durationPicCount = frame->m_duration;
+
+    /* fair assumption: assume the cpb duration is equal to the display duration.
+     * It's only an issue with extreme VFR or low delay applications */
+    double durationSecs = frame->m_duration * frame->m_timebase;
+    frame->m_lowres.dispDurationSecs = durationSecs;
+    frame->m_lowres.cpbDurationSecs = durationSecs;
 }
 
 void Lookahead::vbvLookahead(Lowres **frames, int numFrames, int keyframe)
@@ -2817,6 +2933,7 @@ void Lookahead::vbvLookahead(Lowres **frames, int numFrames, int keyframe)
             int p0 = IS_X265_TYPE_I(frames[curNonB]->sliceType) ? curNonB : prevNonB;
             frames[nextNonB]->plannedSatd[idx] = vbvFrameCost(frames, p0, curNonB, curNonB);
             frames[nextNonB]->plannedType[idx] = frames[curNonB]->sliceType;
+            frames[nextNonB]->plannedCpbDuration[idx] = frames[curNonB]->cpbDurationSecs;
 
             /* Save the nextNonB Cost in each B frame of the current miniGop */
             if (curNonB > miniGopEnd)
@@ -2824,7 +2941,8 @@ void Lookahead::vbvLookahead(Lowres **frames, int numFrames, int keyframe)
                 for (int j = nextB; j < miniGopEnd; j++)
                 {
                     frames[j]->plannedSatd[frames[j]->indB] = frames[nextNonB]->plannedSatd[idx];
-                    frames[j]->plannedType[frames[j]->indB++] = frames[nextNonB]->plannedType[idx];
+                    frames[j]->plannedType[frames[j]->indB] = frames[nextNonB]->plannedType[idx];
+                    frames[j]->plannedCpbDuration[frames[j]->indB++] = frames[nextNonB]->cpbDurationSecs;
                 }
             }
             idx++;
@@ -2854,8 +2972,9 @@ void Lookahead::vbvLookahead(Lowres **frames, int numFrames, int keyframe)
                 satdCost = vbvFrameCost(frames, prevNonB, curNonB, i);
             frames[nextNonB]->plannedSatd[idx] = satdCost;
             frames[nextNonB]->plannedType[idx] = type;
-            /* Save the nextB Cost in each B frame of the current miniGop */
+            frames[nextNonB]->plannedCpbDuration[idx] = frames[i]->cpbDurationSecs;
 
+            /* Save the nextB Cost in each B frame of the current miniGop */
             for (int j = nextB; j < miniGopEnd; j++)
             {
                 if (curBRef && curBRef == i)
@@ -2863,7 +2982,8 @@ void Lookahead::vbvLookahead(Lowres **frames, int numFrames, int keyframe)
                 if (j >= i && j !=nextBRef)
                     continue;
                 frames[j]->plannedSatd[frames[j]->indB] = satdCost;
-                frames[j]->plannedType[frames[j]->indB++] = type;
+                frames[j]->plannedType[frames[j]->indB] = type;
+                frames[j]->plannedCpbDuration[frames[j]->indB++] = frames[nextB]->cpbDurationSecs;
             }
         }
         prevNonB = curNonB;
@@ -2899,12 +3019,23 @@ void Lookahead::slicetypeAnalyse(Lowres **frames, bool bKeyframe)
     int resetStart;
     bool bIsVbvLookahead = m_param->rc.vbvBufferSize && m_param->lookaheadDepth;
 
+    uint32_t keyintTimeLimit = m_param->keyframeMax + (int)(m_lastKeyframe - (frames[0]->dispPicCount + frames[0]->durationPicCount));
+    uint32_t extendedKeyIntTime = keyintTimeLimit + m_param->gopLookahead;
+
+    int keyIntFrameCnt = 0, keyIntFrameCntExtended = 0;
+    uint32_t durationAhead = 0;
+
     /* count undecided frames */
     for (framecnt = 0; framecnt < maxSearch; framecnt++)
     {
         Lowres *fenc = frames[framecnt + 1];
         if (!fenc || fenc->sliceType != X265_TYPE_AUTO)
             break;
+        durationAhead += fenc->durationPicCount;
+        if (durationAhead <= keyintTimeLimit)
+            ++keyIntFrameCnt;
+        if (durationAhead <= extendedKeyIntTime)
+            ++keyIntFrameCntExtended;
     }
 
     if (!framecnt && m_param->analysisLoadReuseLevel != 1)
@@ -2937,19 +3068,18 @@ void Lookahead::slicetypeAnalyse(Lowres **frames, bool bKeyframe)
     int keylimit = m_param->keyframeMax;
     if (frames[0]->frameNum < m_param->chunkEnd)
     {
-        int chunkStart = (m_param->chunkStart - m_lastKeyframe - 1);
-        int chunkEnd = (m_param->chunkEnd - m_lastKeyframe);
-        if ((chunkStart > 0) && (chunkStart < m_param->keyframeMax))
+        int chunkStart = (m_param->chunkStart - m_lastKeyframeNum - 1);
+        int chunkEnd = (m_param->chunkEnd - m_lastKeyframeNum);
+        if ((chunkStart > 0) && (chunkStart < keylimit))
             keylimit = chunkStart;
-        else if ((chunkEnd > 0) && (chunkEnd < m_param->keyframeMax))
+        else if ((chunkEnd > 0) && (chunkEnd < keylimit))
             keylimit = chunkEnd;
     }
 
-    int keyFrameLimit = keylimit + m_lastKeyframe - frames[0]->frameNum - 1;
-    if (m_param->gopLookahead && keyFrameLimit <= m_param->bframes + 1)
-        keyintLimit = keyFrameLimit + m_param->gopLookahead;
+    if (m_param->gopLookahead && keyIntFrameCnt <= m_param->bframes + 1)
+        keyintLimit = keyIntFrameCntExtended;
     else
-        keyintLimit = keyFrameLimit;
+        keyintLimit = keyIntFrameCnt;
 
     origNumFrames = numFrames = m_param->bIntraRefresh ? framecnt : X265_MIN(framecnt, keyintLimit);
 
@@ -3051,7 +3181,7 @@ void Lookahead::slicetypeAnalyse(Lowres **frames, bool bKeyframe)
             frames[1]->sliceType = X265_TYPE_I;
             return;
         }
-        if (m_param->gopLookahead && (keyFrameLimit >= 0) && (keyFrameLimit <= m_param->bframes + 1))
+        if (m_param->gopLookahead && (keyIntFrameCnt >= 0) && (keyIntFrameCnt <= m_param->bframes + 1))
         {
             bool sceneTransition = m_isSceneTransition;
             m_extendGopBoundary = false;
@@ -3157,7 +3287,19 @@ void Lookahead::slicetypeAnalyse(Lowres **frames, bool bKeyframe)
             bool bForceRADL = zoneRadl || (m_param->radl && (m_param->keyframeMax == m_param->keyframeMin));
             bool bLastMiniGop = (framecnt >= m_param->bframes + 1) ? false : true;
             int radl = m_param->radl ? m_param->radl : zoneRadl;
-            int preRADL = m_lastKeyframe + m_param->keyframeMax - radl - 1; /*Frame preceeding RADL in POC order*/
+            int nextIRAP = -1;
+            int minDiff = 1 << 30;
+            for (int j = numFrames; j > 0; --j)
+            {
+                int diff = (int)(frames[j]->dispPicCount - m_lastKeyframe) + (int)frames[j]->durationPicCount;
+                if (diff >= m_param->keyframeMax && diff < minDiff)
+                {
+                    minDiff = diff;
+                    nextIRAP = j;
+                }
+            }
+            /* radl in frame counts: frame preceeding RADL in POC order*/
+            int preRADL = nextIRAP > 0 ? frames[nextIRAP]->frameNum - radl - 1 : -1;
             if (bForceRADL && (frames[0]->frameNum == preRADL) && !bLastMiniGop)
             {
                 int j = 1;
@@ -3194,15 +3336,22 @@ void Lookahead::slicetypeAnalyse(Lowres **frames, bool bKeyframe)
         if (m_param->rc.cuTree)
             cuTree(frames, X265_MIN(numFrames, m_param->keyframeMax), bKeyframe);
 
-        if (m_param->gopLookahead && (keyFrameLimit >= 0) && (keyFrameLimit <= m_param->bframes + 1) && !m_extendGopBoundary)
-            keyintLimit = keyFrameLimit;
+        if (m_param->gopLookahead && (keyIntFrameCnt >= 0) && (keyIntFrameCnt <= m_param->bframes + 1) && !m_extendGopBoundary)
+            keyintLimit = keyIntFrameCnt;
 
         if (!m_param->bIntraRefresh)
-            for (int j = keyintLimit + 1; j <= numFrames; j += m_param->keyframeMax)
+        {
+            uint32_t duration = 0;
+            for (int j = keyintLimit + 1; j <= numFrames; ++j)
             {
-                frames[j]->sliceType = X265_TYPE_I;
-                resetStart = X265_MIN(resetStart, j + 1);
+                if (duration % m_param->keyframeMax == 0)
+                {
+                    frames[j]->sliceType = X265_TYPE_I;
+                    resetStart = X265_MIN(resetStart, j + 1);
+                }
+                duration += frames[j]->durationPicCount;
             }
+        }
 
         if (bIsVbvLookahead)
             vbvLookahead(frames, numFrames, bKeyframe);
@@ -3334,7 +3483,7 @@ bool Lookahead::scenecutInternal(Lowres **frames, int p0, int p1, bool bRealScen
     estGroup.singleCost(p0, p1, p1);
     int64_t icost = frame->costEst[0][0];
     int64_t pcost = frame->costEst[p1 - p0][0];
-    int gopSize = (frame->frameNum - m_lastKeyframe) % m_param->keyframeMax;
+    int gopSize = (frame->dispPicCount - m_lastKeyframe) % m_param->keyframeMax;
     float threshMax = (float)(m_param->scenecutThreshold / 100.0);
     /* magic numbers pulled out of thin air */
     float threshMin = (float)(threshMax * 0.25);
@@ -3717,6 +3866,11 @@ void Lookahead::cuTree(Lowres **frames, int numframes, bool bIntra)
     int bframes = 0;
 
     x265_emms();
+    double totalDuration = 0.0;
+    for (int j = 0; j <= numframes; j++)
+        totalDuration += frames[j]->dispDurationSecs;
+
+    double averageDuration = totalDuration / (numframes + 1);
 
     int i = numframes;
 
@@ -3821,7 +3975,7 @@ void Lookahead::estimateCUPropagate(Lowres **frames, int p0, int p1, int b, int 
     uint16_t *propagateCost = frames[b]->propagateCost;
 
     x265_emms();
-    double fpsFactor = 1.0;
+    double fpsFactor = CLIP_DURATION(frames[b]->dispDurationSecs) / CLIP_DURATION(averageDuration);
 
     /* For non-referred frames the source costs are always zero, so just memset one row and re-use it. */
     if (!referenced)
@@ -3918,7 +4072,7 @@ void Lookahead::estimateCUPropagate(Lowres **frames, int p0, int p1, int b, int 
 
 void Lookahead::computeCUTreeQpOffset(Lowres *frame, int ref0Distance)
 {
-    int fpsFactor = 256;
+    int fpsFactor = (int)(CLIP_DURATION(averageDuration) / CLIP_DURATION(frame->dispDurationSecs) * 256);
     uint32_t loopIncr = (m_param->rc.qgSize == 8) ? 8 : 16;
 
     double weightdelta = 0.0;

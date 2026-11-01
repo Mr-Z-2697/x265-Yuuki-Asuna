@@ -293,6 +293,7 @@ static const struct option long_options[] =
     { "no-info",              no_argument, NULL, 0 },
     { "opts",           required_argument, NULL, 0 },
     { "zones",          required_argument, NULL, 0 },
+    { "psfile",         required_argument, NULL, 0 },
     { "qpfile",         required_argument, NULL, 0 },
     { "zonefile",       required_argument, NULL, 0 },
     { "no-zonefile-rc-init",  no_argument, NULL, 0 },
@@ -361,14 +362,15 @@ static const struct option long_options[] =
     { "refine-analysis-type", required_argument, NULL, 0 },
     { "copy-pic",             no_argument, NULL, 0 },
     { "no-copy-pic",          no_argument, NULL, 0 },
-    { "max-ausize-factor", required_argument, NULL, 0 },
+    { "max-ausize-factor",    required_argument, NULL, 0 },
     { "idr-recovery-sei",     no_argument, NULL, 0 },
     { "no-idr-recovery-sei",  no_argument, NULL, 0 },
-    { "single-sei", no_argument, NULL, 0 },
-    { "no-single-sei", no_argument, NULL, 0 },
-    { "atc-sei", required_argument, NULL, 0 },
-    { "pic-struct", required_argument, NULL, 0 },
-    { "nalu-file", required_argument, NULL, 0 },
+    { "single-sei",     no_argument, NULL, 0 },
+    { "no-single-sei",  no_argument, NULL, 0 },
+    { "atc-sei",        required_argument, NULL, 0 },
+    { "frame-packing",  required_argument, NULL, 0 },
+    { "pic-struct",     required_argument, NULL, 0 },
+    { "nalu-file",      required_argument, NULL, 0 },
     { "dolby-vision-rpu", required_argument, NULL, 0 },
     { "hrd-concat",          no_argument, NULL, 0},
     { "no-hrd-concat",       no_argument, NULL, 0 },
@@ -438,6 +440,7 @@ static const struct option long_options[] =
         InputFile* input[MAX_VIEWS];
         ReconFile* recon[MAX_LAYERS];
         OutputFile* output;
+        FILE*       psfile;
         FILE*       qpfile;
         FILE*       zoneFile;
         FILE*    dolbyVisionRpu;    /* File containing Dolby Vision BL RPU metadata */
@@ -493,6 +496,7 @@ static const struct option long_options[] =
             for (int i = 0; i < MAX_VIEWS; i++)
                 inputfn[i] = NULL;
             output = NULL;
+            psfile = NULL;
             qpfile = NULL;
             zoneFile = NULL;
             dolbyVisionRpu = NULL;
@@ -535,6 +539,8 @@ static const struct option long_options[] =
         void printStatus(uint32_t frameNum);
         bool parse(int argc, char **argv);
         bool parseZoneParam(int argc, char **argv, x265_param* globalParam, int zonefileCount);
+        bool checkParamsWithPSFile(const x265_param* globalParam);
+        bool parsePSFile(x265_picture &pic_org, int fieldOrder);
         bool parseQPFile(x265_picture &pic_org);
         bool parseZoneFile();
         int rpuParser(x265_picture * pic);

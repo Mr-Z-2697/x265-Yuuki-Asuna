@@ -106,7 +106,6 @@ void FrameEncoder::destroy()
     if (m_param->bEmitHRDSEI || !!m_param->interlaceMode)
     {
         delete m_rce.picTimingSEI;
-        delete m_rce.hrdTiming;
     }
 }
 
@@ -183,9 +182,8 @@ bool FrameEncoder::init(Encoder *top, int numRows, int numCols)
     if (m_param->bEmitHRDSEI || !!m_param->interlaceMode)
     {
         m_rce.picTimingSEI = new SEIPictureTiming;
-        m_rce.hrdTiming = new HRDTiming;
 
-        ok &= m_rce.picTimingSEI && m_rce.hrdTiming;
+        ok &= m_rce.picTimingSEI != NULL;
     }
 
     if (m_param->noiseReductionIntra || m_param->noiseReductionInter)
@@ -760,8 +758,12 @@ void FrameEncoder::compressFrame(int layer)
         }
     }
 
+    /* In single SEI NAL mode the SEI messages of this access unit are collected in m_bs, which still holds the
+     * previous picture's slice header unless the AUD or the repeated stream headers above have reset it */
+    if (m_param->bSingleSeiNal && !(m_frame[layer]->m_lowres.bKeyframe && m_param->bRepeatHeaders))
+        m_bs.resetBits();
+
     m_rce.encodeOrder = m_frame[layer]->m_encodeOrder;
-    int prevBPSEI = m_rce.encodeOrder ? m_top->m_lastBPSEI : 0;
 
     if (m_frame[layer]->m_lowres.bKeyframe)
     {
@@ -778,8 +780,6 @@ void FrameEncoder::compressFrame(int layer)
             // hrdFullness() calculates the initial CPB removal delay and offset
             m_top->m_rateControl->hrdFullness(bpSei);
             bpSei->writeSEImessages(m_bs, *slice->m_sps, NAL_UNIT_PREFIX_SEI, m_nalList, m_param->bSingleSeiNal, layer);
-
-            m_top->m_lastBPSEI = m_rce.encodeOrder;
         }
 
         if (m_frame[layer]->m_lowres.sliceType == X265_TYPE_IDR && m_param->bEmitIDRRecoverySEI)
@@ -798,32 +798,29 @@ void FrameEncoder::compressFrame(int layer)
         SEIPictureTiming *sei = m_rce.picTimingSEI;
         const VUI *vui = &slice->m_sps->vuiParameters;
         const HRDInfo *hrd = &vui->hrdParameters;
-        int poc = slice->m_poc;
 
         if (vui->frameFieldInfoPresentFlag)
         {
-            if (m_param->interlaceMode > 0)
+            if (m_frame[layer]->m_picStruct == PIC_STRUCT_AUTO)
             {
-                // field_seq_flag is 1, so each picture is a single field: 1 = top field, 2 = bottom field
-                if( m_param->interlaceMode == 2 )
-                {
-                    if (m_param->bField)
-                        sei->m_picStruct = (slice->m_fieldNum == 1) ? 2 /* bottom */ : 1 /* top */;
-                    else
-                        sei->m_picStruct = (poc & 1) ? 1 /* top */ : 2 /* bottom */;
-                }     
-                else if (m_param->interlaceMode == 1)
-                {
-                    if (m_param->bField)
-                        sei->m_picStruct = (slice->m_fieldNum == 1) ? 1 /* top */ : 2 /* bottom */;
-                    else
-                        sei->m_picStruct = (poc & 1) ? 2 /* bottom */ : 1 /* top */;
-                }
+                /* field_seq_flag is 1, so each picture is a single field. Signal
+                 * the field pair with pic_struct 9-12 (H.265 Table D.2, pairing in
+                 * output order): 11 = top field paired with the next bottom field,
+                 * 10 = bottom field paired with the previous top field (tff frame),
+                 * 12 = bottom field paired with the next top field, 9 = top field
+                 * paired with the previous bottom field (bff frame). With --field,
+                 * fieldNum 1 is the first field of the frame; with field input, or
+                 * when a library caller leaves fieldNum at 0, the even POC is. */
+                const bool firstField = slice->m_fieldNum ? (slice->m_fieldNum == 1) : !(slice->m_poc & 1);
+                if (m_param->interlaceMode == 2)      /* bff: first field is the bottom field */
+                    sei->m_picStruct = firstField ? PIC_STRUCT_BOTTOM_NEXTTOP : PIC_STRUCT_TOP_PREVBOTTOM;
+                else if (m_param->interlaceMode == 1) /* tff: first field is the top field */
+                    sei->m_picStruct = firstField ? PIC_STRUCT_TOP_NEXTBOTTOM : PIC_STRUCT_BOTTOM_PREVTOP;
+                else
+                    sei->m_picStruct = PIC_STRUCT_PROGRESSIVE_FRAME;
             }
-            else if (m_param->bEnableFrameDuplication)
-                sei->m_picStruct = m_frame[layer]->m_picStruct;
             else
-                sei->m_picStruct = m_param->pictureStructure;
+                sei->m_picStruct = m_frame[layer]->m_picStruct;
 
             sei->m_sourceScanType = m_param->interlaceMode ? 0 : 1;
 
@@ -832,12 +829,11 @@ void FrameEncoder::compressFrame(int layer)
 
         if (vui->hrdParametersPresentFlag)
         {
-            // The m_aucpbremoval delay specifies how many clock ticks the
-            // access unit associated with the picture timing SEI message has to
-            // wait after removal of the access unit with the most recent
-            // buffering period SEI message
-            sei->m_auCpbRemovalDelay = X265_MIN(X265_MAX(1, m_rce.encodeOrder - prevBPSEI), (1 << hrd->cpbRemovalDelayLength));
-            sei->m_picDpbOutputDelay = slice->m_sps->numReorderPics[m_frame[layer]->m_tempLayer] + poc - m_rce.encodeOrder;
+            /* The m_aucpbremoval delay specifies how many clock ticks the access unit
+             * with the picture timing SEI message has to wait after removal of the
+             * access unit with the most recent buffering period SEI message */
+            sei->m_auCpbRemovalDelay = X265_MIN(X265_MAX(1u, m_frame[layer]->m_cpbDelay), (1u << hrd->cpbRemovalDelayLength));
+            sei->m_picDpbOutputDelay = m_frame[layer]->m_dpbDelay;
         }
 
         sei->writeSEImessages(m_bs, *slice->m_sps, NAL_UNIT_PREFIX_SEI, m_nalList, m_param->bSingleSeiNal, layer);
@@ -848,6 +844,24 @@ void FrameEncoder::compressFrame(int layer)
         SEIAlternativeTC m_seiAlternativeTC;
         m_seiAlternativeTC.m_preferredTransferCharacteristics = m_param->preferredTransferCharacteristics;
         m_seiAlternativeTC.writeSEImessages(m_bs, *slice->m_sps, NAL_UNIT_PREFIX_SEI, m_nalList, m_param->bSingleSeiNal, layer);
+    }
+
+    /* The message describes the packed pictures of the base layer: an alpha layer is not a view. */
+    bool writeFramePacking = m_param->framePacking > -1 && !layer && (slice->isIRAP() || m_param->framePacking == 5 ||
+                             (m_param->bIntraRefresh && m_frame[layer]->m_lowres.bKeyframe));
+    if (writeFramePacking)
+    {
+        /* Type 5 alternates the views frame by frame, so every picture carries its own message. The
+         * other types persist until the next IRAP, which repeats the message, or with intra refresh
+         * until the next refresh cycle, which starts a keyframe that is not an IRAP. With --interlace the
+         * pictures are fields and both fields of a frame belong to the same view. The view follows
+         * the input picture, not the encoded one: --frame-dup drops duplicates before encoding. */
+        int frameIdx = m_param->interlaceMode ? m_frame[layer]->m_sourcePoc >> 1 : m_frame[layer]->m_sourcePoc;
+        SEIFramePacking m_seiFramePacking;
+        m_seiFramePacking.m_arrangementType = m_param->framePacking;
+        m_seiFramePacking.m_currentFrameIsFrame0 = m_param->framePacking == 5 && !(frameIdx & 1);
+        m_seiFramePacking.m_persistence = m_param->framePacking != 5;
+        m_seiFramePacking.writeSEImessages(m_bs, *slice->m_sps, NAL_UNIT_PREFIX_SEI, m_nalList, m_param->bSingleSeiNal, layer);
     }
     /* Write Film grain characteristics if present */
     if (this->m_top->m_filmGrainIn)
@@ -893,6 +907,7 @@ void FrameEncoder::compressFrame(int layer)
 
     bool isSei = ((m_frame[layer]->m_lowres.bKeyframe && m_param->bRepeatHeaders) || m_param->bEmitHRDSEI ||
                  !!m_param->interlaceMode || (m_frame[layer]->m_lowres.sliceType == X265_TYPE_IDR && m_param->bEmitIDRRecoverySEI) ||
+                   writeFramePacking ||
                    m_frame[layer]->m_userSEI.numPayloads);
 
     if (isSei && m_param->bSingleSeiNal)
