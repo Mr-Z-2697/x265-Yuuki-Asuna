@@ -40,7 +40,7 @@ option(NATIVE_BUILD "Target the build CPU" OFF)
 option(STATIC_LINK_CRT "Statically link C and C++ runtimes for release builds" OFF)
 mark_as_advanced(FPROFILE_USE FPROFILE_GENERATE NATIVE_BUILD)
 # X265_BUILD must be incremented each time the public API is changed
-set(X265_BUILD 218)
+set(X265_BUILD 219)
 configure_file("${PROJECT_SOURCE_DIR}/x265.def.in"
                "${PROJECT_BINARY_DIR}/x265.def")
 configure_file("${PROJECT_SOURCE_DIR}/x265_config.h.in"
@@ -160,6 +160,12 @@ elseif(LOONGARCH64MATCH GREATER "-1")
 else()
     message(STATUS "CMAKE_SYSTEM_PROCESSOR value `${CMAKE_SYSTEM_PROCESSOR}` is unknown")
     message(STATUS "Please add this value near ${CMAKE_CURRENT_LIST_FILE}:${CMAKE_CURRENT_LIST_LINE}")
+endif()
+
+option(ENABLE_COOPSLICE_FALSE_SHARING_REDUCTION
+    "Align cooperative lookahead slices and retry helper recruitment" ${ARM64})
+if(ENABLE_COOPSLICE_FALSE_SHARING_REDUCTION)
+    add_definitions(-DX265_ENABLE_COOPSLICE_FALSE_SHARING_REDUCTION=1)
 endif()
 
 if(X64)

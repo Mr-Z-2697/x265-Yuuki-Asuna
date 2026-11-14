@@ -1092,6 +1092,9 @@ Lookahead::Lookahead(x265_param *param, ThreadPool* pool, SPS* sps)
     m_lastNonB = NULL;
     m_isSceneTransition = false;
     m_scratch        = NULL;
+#if X265_ENABLE_COOPSLICE_FALSE_SHARING_REDUCTION
+    m_coopSlices     = NULL;
+#endif
     m_tld            = NULL;
     m_noiseBlurBuf   = NULL;
     m_gradMagBuf     = NULL;
@@ -1267,6 +1270,18 @@ bool Lookahead::create()
         m_tld[i].init(m_8x8Width, m_8x8Height, m_8x8Blocks);
     m_scratch = X265_MALLOC(int, m_tld[0].widthInCU);
 
+#if X265_ENABLE_COOPSLICE_FALSE_SHARING_REDUCTION
+    if (m_numCoopSlices > 1)
+    {
+        X265_CHECK(m_numCoopSlices <= CostEstimateGroup::MAX_COOP_SLICES, "too many cooperative slices\n");
+        m_coopSlices = X265_MALLOC(CoopSlice, m_numCoopSlices);
+        if (!m_coopSlices)
+        {
+            return false;
+        }
+    }
+#endif
+
     if (m_param->bEnableTemporalFilter)
     {
         m_metld = new MotionEstimatorTLD[numTLD];
@@ -1327,6 +1342,9 @@ void Lookahead::destroy()
     X265_FREE(m_noiseBlurBuf);
     X265_FREE(m_gradMagBuf);
     X265_FREE(m_scratch);
+#if X265_ENABLE_COOPSLICE_FALSE_SHARING_REDUCTION
+    X265_FREE(m_coopSlices);
+#endif
     delete [] m_tld;
     if (m_param->lookaheadThreads > 0)
         delete [] m_pool;
@@ -3019,11 +3037,12 @@ void Lookahead::slicetypeAnalyse(Lowres **frames, bool bKeyframe)
     int resetStart;
     bool bIsVbvLookahead = m_param->rc.vbvBufferSize && m_param->lookaheadDepth;
 
-    uint32_t keyintTimeLimit = m_param->keyframeMax + (int)(m_lastKeyframe - (frames[0]->dispPicCount + frames[0]->durationPicCount));
-    uint32_t extendedKeyIntTime = keyintTimeLimit + m_param->gopLookahead;
+    int64_t keyintTimeLimit = (int64_t)m_param->keyframeMax + m_lastKeyframe
+                            - ((int64_t)frames[0]->dispPicCount + (int64_t)frames[0]->durationPicCount);
+    int64_t extendedKeyIntTime = keyintTimeLimit + m_param->gopLookahead;
 
     int keyIntFrameCnt = 0, keyIntFrameCntExtended = 0;
-    uint32_t durationAhead = 0;
+    int64_t durationAhead = 0;
 
     /* count undecided frames */
     for (framecnt = 0; framecnt < maxSearch; framecnt++)
@@ -3059,7 +3078,7 @@ void Lookahead::slicetypeAnalyse(Lowres **frames, bool bKeyframe)
                 nextZoneStart += (i + 1 < m_param->rc.zonefileCount) ? m_param->rc.zones[i + 1].startFrame + m_param->rc.zones[i + 1].zoneParam->radl : m_param->totalFrames;
                 if (curZoneStart <= frames[0]->frameNum && nextZoneStart > frames[0]->frameNum)
                     m_param->keyframeMax = nextZoneStart - curZoneStart;
-                if (m_param->rc.zones[m_param->rc.zonefileCount - 1].startFrame <= frames[0]->frameNum && nextZoneStart == 0)
+                if (m_param->rc.zones[m_param->rc.zonefileCount - 1].startFrame <= frames[0]->frameNum && nextZoneStart == m_param->totalFrames)
                     m_param->keyframeMax = m_param->rc.zones[0].keyframeMax;
             }
         }
@@ -3341,15 +3360,15 @@ void Lookahead::slicetypeAnalyse(Lowres **frames, bool bKeyframe)
 
         if (!m_param->bIntraRefresh)
         {
-            uint32_t duration = 0;
+            int64_t lastKeyDisp = 0;
             for (int j = keyintLimit + 1; j <= numFrames; ++j)
             {
-                if (duration % m_param->keyframeMax == 0)
+                if (j == keyintLimit + 1 || frames[j]->dispPicCount - lastKeyDisp + (int64_t)frames[j]->durationPicCount > m_param->keyframeMax)
                 {
                     frames[j]->sliceType = X265_TYPE_I;
                     resetStart = X265_MIN(resetStart, j + 1);
+                    lastKeyDisp = frames[j]->dispPicCount;
                 }
-                duration += frames[j]->durationPicCount;
             }
         }
 
@@ -4400,6 +4419,9 @@ void CostEstimateGroup::processTasks(int workerThreadID)
         id = pool ? pool->m_numWorkers : 0;
     LookaheadTLD& tld = m_lookahead.m_tld[id];
 
+#if X265_ENABLE_COOPSLICE_FALSE_SHARING_REDUCTION
+    bool retryPeers = workerThreadID < 0 && m_batchMode && pool && m_bondedPeerCount == m_exitedPeerCount.get();
+#endif
     m_lock.acquire();
     while (m_jobAcquired < m_jobTotal)
     {
@@ -4474,6 +4496,12 @@ void CostEstimateGroup::processTasks(int workerThreadID)
         }
 
         m_lock.acquire();
+#if X265_ENABLE_COOPSLICE_FALSE_SHARING_REDUCTION
+        if (retryPeers && m_jobAcquired < m_jobTotal && tryBondPeers(*pool, m_jobTotal - m_jobAcquired))
+        {
+            retryPeers = false;
+        }
+#endif
     }
     m_lock.release();
 }
@@ -4511,7 +4539,10 @@ int64_t CostEstimateGroup::estimateFrameCost(LookaheadTLD& tld, int p0, int p1, 
             /* Use cooperative mode if a thread pool is available and the cost estimate is
              * going to need motion searches or bidir measurements */
 
-            memset(&m_slice, 0, sizeof(Slice) * m_lookahead.m_numCoopSlices);
+#if X265_ENABLE_COOPSLICE_FALSE_SHARING_REDUCTION
+            X265_CHECK(m_slice != NULL, "cooperative slice storage not allocated\n");
+#endif
+            memset(m_slice, 0, sizeof(CoopSlice) * m_lookahead.m_numCoopSlices);
 
             m_lock.acquire();
             X265_CHECK(!m_batchMode, "single CostEstimateGroup instance cannot mix batch modes\n");
