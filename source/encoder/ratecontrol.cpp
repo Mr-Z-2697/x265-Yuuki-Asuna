@@ -879,6 +879,11 @@ bool RateControl::init(const SPS& sps)
         }
         if (m_param->rc.cuTree && !m_cuTreeStats.qpBuffer[0])
         {
+            if (!m_param->rc.bStatRead)
+            {
+                m_cuTreeStats.srcDim[0] = m_param->sourceWidth;
+                m_cuTreeStats.srcDim[1] = m_param->sourceHeight;
+            }
             /* The records are read in order, so the 2nd pass keeps the records of the frames
              * reordered past by the B-pyramid: one with --b-pyramid 1, as many as --bframes allows
              * with the hierarchical B-pyramid, whose file mode reads each frame's record directly
@@ -2126,12 +2131,11 @@ bool RateControl::cuTreeReadFor2Pass(Frame* frame)
                 while (type != sliceTypeActual);
             }
             double *dst = m_cuTreeStats.bRescaleEnabled ? m_cuTreeStats.scaleBuffer[0] : frame->m_lowres.qpCuTreeOffset;
-        primitives.fix8Unpack(dst, m_cuTreeStats.qpBuffer[m_cuTreeStats.qpBufPos], m_cuTreeStats.srcCuCount);
-
-        if (m_cuTreeStats.bRescaleEnabled)
-            cuTreeRescale(frame->m_lowres.qpCuTreeOffset);
+            primitives.fix8Unpack(dst, m_cuTreeStats.qpBuffer[m_cuTreeStats.qpBufPos], m_cuTreeStats.srcCuCount);
             m_cuTreeStats.qpBufPos--;
         }
+        if (m_cuTreeStats.bRescaleEnabled)
+            cuTreeRescale(frame->m_lowres.qpCuTreeOffset);
         for (int i = 0; i < ncu; i++)
             frame->m_lowres.invQscaleFactor[i] = x265_exp2fix8(frame->m_lowres.qpCuTreeOffset[i]);
     }
