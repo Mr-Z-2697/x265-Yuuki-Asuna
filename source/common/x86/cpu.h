@@ -46,6 +46,7 @@ uint64_t PFX(cpu_xgetbv)(int xcr);
 
 static inline uint32_t x86_cpu_detect(bool benableavx512)
 {
+    (void)benableavx512;
     uint32_t flags = 0;
     uint32_t eax, ebx, ecx, edx;
     uint32_t vendor[4] = { 0 };
@@ -106,7 +107,7 @@ static inline uint32_t x86_cpu_detect(bool benableavx512)
         {
             if (ebx & 0x00000020)
                 flags |= X265_CPU_AVX2;
-            if (benableavx512)
+            if (true)
             {
                 if ((xcr0 & 0xE0) == 0xE0) /* OPMASK/ZMM state */
                 {
