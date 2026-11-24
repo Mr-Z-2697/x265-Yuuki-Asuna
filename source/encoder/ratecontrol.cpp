@@ -366,15 +366,16 @@ RateControl::RateControl(x265_param& p, Encoder *top)
     /* qpstep - value set as encoder specific */
     m_lstep = pow(2, m_param->rc.qpStep / 6.0);
 
-    for (int i = 0; i < X265_BFRAME_MAX + 2; i++)
+    for (int i = 0; i < 2; i++)
     {
-        m_cuTreeStats.qpBuffer[i] = NULL;
         m_cuTreeStats.scaleBuffer[i] = NULL;
         m_cuTreeStats.coeffs[i] = NULL;
         m_cuTreeStats.pos[i] = NULL;
     }
-
     m_cuTreeStats.bRescaleEnabled = 0;
+
+    for (int i = 0; i < X265_BFRAME_MAX + 2; i++)
+        m_cuTreeStats.qpBuffer[i] = NULL;
     m_cuTreeStats.qpBufDepth = 0;
 }
 
@@ -2080,7 +2081,8 @@ bool RateControl::cuTreeReadFor2Pass(Frame* frame)
                          type, sliceTypeActual, frame->m_poc);
                 return false;
             }
-            primitives.fix8Unpack(frame->m_lowres.qpCuTreeOffset, m_cuTreeStats.qpBuffer[0], ncu);
+            double *dst = m_cuTreeStats.bRescaleEnabled ? m_cuTreeStats.scaleBuffer[0] : frame->m_lowres.qpCuTreeOffset;
+            primitives.fix8Unpack(dst, m_cuTreeStats.qpBuffer[0], ncu);
         }
         else
         {

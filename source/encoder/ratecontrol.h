@@ -281,10 +281,10 @@ public:
 
         /* For rescaling */
         int bRescaleEnabled;
-        double *scaleBuffer[X265_BFRAME_MAX + 2]; /* Intermediate buffers */
+        double *scaleBuffer[2]; /* Intermediate buffers */
         int filterSize[2];      /* filter size (H/V) */
-        double *coeffs[X265_BFRAME_MAX + 2];
-        int *pos[X265_BFRAME_MAX + 2];
+        double *coeffs[2];
+        int *pos[2];
         int srcDim[2];          /* Source dimensions (W/H) */
     } m_cuTreeStats;
 
