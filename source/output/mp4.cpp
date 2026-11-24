@@ -322,7 +322,7 @@ int MP4Output::writeHeaders(const x265_nal* p_nal, uint32_t nalcount)
  */
 int MP4Output::writeFrame(const x265_nal* p_nalu, uint32_t nalcount, x265_picture& pic)
 {
-    const bool b_keyframe = pic.sliceType == X265_TYPE_IDR;
+    const bool b_keyframe = IS_X265_TYPE_I(pic.sliceType);
     int i_size = 0;
     const int i_pts = pic.pts;
     const int i_dts = pic.dts - i_delay_frames;
