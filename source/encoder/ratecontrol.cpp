@@ -884,24 +884,12 @@ bool RateControl::init(const SPS& sps)
                 m_cuTreeStats.srcDim[0] = m_param->sourceWidth;
                 m_cuTreeStats.srcDim[1] = m_param->sourceHeight;
             }
-            /* The records are read in order, so the 2nd pass keeps the records of the frames
-             * reordered past by the B-pyramid: one with --b-pyramid 1, as many as --bframes allows
-             * with the hierarchical B-pyramid, whose file mode reads each frame's record directly
-             * and needs one buffer */
-            int depth = 1;
-            if (m_param->bBPyramid && m_param->rc.bStatRead)
-            {
-                if (m_param->bBPyramid != X265_B_PYRAMID_HIERARCHICAL)
-                    depth = 2;
-                else if (X265_SHARE_MODE_SHAREDMEM == m_param->rc.dataShareMode)
-                    depth = x265_clip3(2, X265_BFRAME_MAX + 2, m_param->bframes + 2);
-            }
-            m_cuTreeStats.qpBufDepth = depth;
 
-            uint32_t bufBytes = (m_param->rc.qgSize == 8 ? m_ncu * 4 : m_ncu) * sizeof(uint16_t);
-            for (int i = 0; i < depth; i++)
-                m_cuTreeStats.qpBuffer[i] = X265_MALLOC(uint16_t, bufBytes);
-            m_cuTreeStats.qpBufPos = -1;
+            if (cuTreeRescaleInit() < 0)
+            {
+                x265_log(m_param, X265_LOG_ERROR, "%s call cuTreeRescaleInit error!\n", __FUNCTION__);
+                return false;
+            }
         }
     }
     return true;
@@ -1924,18 +1912,23 @@ int RateControl::cuTreeRescaleInit()
     if (m_param->rc.qgSize == 8)
         m_cuTreeStats.srcCuCount = m_cuTreeStats.srcCuCount * 4;
 
-    if (m_param->rc.qgSize == 8)
+    /* The records are read in order, so the 2nd pass keeps the records of the frames
+        * reordered past by the B-pyramid: one with --b-pyramid 1, as many as --bframes allows
+        * with the hierarchical B-pyramid, whose file mode reads each frame's record directly
+        * and needs one buffer */
+    int depth = 1;
+    if (m_param->bBPyramid && m_param->rc.bStatRead)
     {
-        CHECKED_MALLOC(m_cuTreeStats.qpBuffer[0], uint16_t, m_cuTreeStats.srcCuCount * 4 * sizeof(uint16_t));
-        if (m_param->bBPyramid && m_param->rc.bStatRead)
-            CHECKED_MALLOC(m_cuTreeStats.qpBuffer[1], uint16_t, m_cuTreeStats.srcCuCount * 4 * sizeof(uint16_t));
+        if (m_param->bBPyramid != X265_B_PYRAMID_HIERARCHICAL)
+            depth = 2;
+        else if (X265_SHARE_MODE_SHAREDMEM == m_param->rc.dataShareMode)
+            depth = x265_clip3(2, X265_BFRAME_MAX + 2, m_param->bframes + 2);
     }
-    else
-    {
-        CHECKED_MALLOC(m_cuTreeStats.qpBuffer[0], uint16_t, m_cuTreeStats.srcCuCount * sizeof(uint16_t));
-        if (m_param->bBPyramid && m_param->rc.bStatRead)
-            CHECKED_MALLOC(m_cuTreeStats.qpBuffer[1], uint16_t, m_cuTreeStats.srcCuCount * sizeof(uint16_t));
-    }
+    m_cuTreeStats.qpBufDepth = depth;
+
+    uint32_t bufBytes = m_cuTreeStats.srcCuCount * sizeof(uint16_t);
+    for (int i = 0; i < depth; i++)
+        CHECKED_MALLOC(m_cuTreeStats.qpBuffer[i], uint16_t, bufBytes);
     m_cuTreeStats.qpBufPos = -1;
 
     /* No rescaling to do */
@@ -2056,11 +2049,7 @@ bool RateControl::cuTreeReadFor2Pass(Frame* frame)
         return false;
     }
     uint8_t sliceTypeActual = (uint8_t)m_rce2Pass[index].sliceType;
-    int ncu;
-    if (m_param->rc.qgSize == 8)
-        ncu = m_ncu * 4;
-    else
-        ncu = m_ncu;
+    int ncu = m_cuTreeStats.srcCuCount;
     if (m_rce2Pass[index].keptAsRef)
     {
         /* TODO: We don't need pre-lookahead to measure AQ offsets, but there is currently
@@ -2108,7 +2097,7 @@ bool RateControl::cuTreeReadFor2Pass(Frame* frame)
                     {
                         if (!fread(&type, 1, 1, m_cutreeStatFileIn))
                             goto fail;
-                        if (fread(m_cuTreeStats.qpBuffer[m_cuTreeStats.qpBufPos], sizeof(uint16_t), m_cuTreeStats.srcCuCount, m_cutreeStatFileIn) != (size_t)m_cuTreeStats.srcCuCount)
+                        if (fread(m_cuTreeStats.qpBuffer[m_cuTreeStats.qpBufPos], sizeof(uint16_t), ncu, m_cutreeStatFileIn) != (size_t)ncu)
                             goto fail;
                     }
                     else // X265_SHARE_MODE_SHAREDMEM == m_param->rc.dataShareMode
@@ -2131,7 +2120,7 @@ bool RateControl::cuTreeReadFor2Pass(Frame* frame)
                 while (type != sliceTypeActual);
             }
             double *dst = m_cuTreeStats.bRescaleEnabled ? m_cuTreeStats.scaleBuffer[0] : frame->m_lowres.qpCuTreeOffset;
-            primitives.fix8Unpack(dst, m_cuTreeStats.qpBuffer[m_cuTreeStats.qpBufPos], m_cuTreeStats.srcCuCount);
+            primitives.fix8Unpack(dst, m_cuTreeStats.qpBuffer[m_cuTreeStats.qpBufPos], ncu);
             m_cuTreeStats.qpBufPos--;
         }
         if (m_cuTreeStats.bRescaleEnabled)
