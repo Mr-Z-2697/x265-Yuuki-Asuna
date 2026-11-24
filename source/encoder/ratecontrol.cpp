@@ -1904,14 +1904,13 @@ bool RateControl::fixUnderflow(int t0, int t1, double adjustment, double qscaleM
 int RateControl::cuTreeRescaleInit()
 {
     /* Use fractional QP array dimensions to compensate for edge padding */
-    double srcdim[2] = {m_cuTreeStats.srcDim[0] / 16., m_cuTreeStats.srcDim[1] / 16.};
-    double dstdim[2] = {m_param->sourceWidth / 16.,   m_param->sourceHeight/ 16.};
+    double blkSize = (m_param->rc.qgSize == 8) ? 8.0 : 16.0;
+    double srcdim[2] = {m_cuTreeStats.srcDim[0] / blkSize, m_cuTreeStats.srcDim[1] / blkSize};
+    double dstdim[2] = {m_param->sourceWidth / blkSize,   m_param->sourceHeight/ blkSize};
     int srcdimi[2] = {(int)ceil(srcdim[0]), (int)ceil(srcdim[1])};
     int dstdimi[2] = {(int)ceil(dstdim[0]), (int)ceil(dstdim[1])};
 
     m_cuTreeStats.srcCuCount = srcdimi[0] * srcdimi[1];
-    if (m_param->rc.qgSize == 8)
-        m_cuTreeStats.srcCuCount = m_cuTreeStats.srcCuCount * 4;
 
     /* The records are read in order, so the 2nd pass keeps the records of the frames
         * reordered past by the B-pyramid: one with --b-pyramid 1, as many as --bframes allows
