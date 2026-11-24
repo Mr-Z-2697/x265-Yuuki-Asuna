@@ -116,8 +116,6 @@ void GOPOutput::setParam(x265_param *p_param)
 
     fprintf(opt_file, "b-frames %d\n",           p_param->bframes);
     fprintf(opt_file, "b-pyramid %d\n",          p_param->bBPyramid);
-    fprintf(opt_file, "input-timebase-num %d\n", info.timebaseNum);
-    fprintf(opt_file, "input-timebase-den %d\n", info.timebaseDenom);
     fprintf(opt_file, "output-fps-num %u\n",     p_param->fpsNum);
     fprintf(opt_file, "output-fps-den %u\n",     p_param->fpsDenom);
     fprintf(opt_file, "source-width %d\n",       p_param->sourceWidth);
