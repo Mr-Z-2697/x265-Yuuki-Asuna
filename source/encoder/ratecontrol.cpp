@@ -1904,11 +1904,11 @@ bool RateControl::fixUnderflow(int t0, int t1, double adjustment, double qscaleM
 int RateControl::cuTreeRescaleInit()
 {
     /* Use fractional QP array dimensions to compensate for edge padding */
-    double blkSize = (m_param->rc.qgSize == 8) ? 8.0 : 16.0;
-    double srcdim[2] = {m_cuTreeStats.srcDim[0] / blkSize, m_cuTreeStats.srcDim[1] / blkSize};
-    double dstdim[2] = {m_param->sourceWidth / blkSize,   m_param->sourceHeight/ blkSize};
-    int srcdimi[2] = {(int)ceil(srcdim[0]), (int)ceil(srcdim[1])};
-    int dstdimi[2] = {(int)ceil(dstdim[0]), (int)ceil(dstdim[1])};
+    double srcdim[2] = {m_cuTreeStats.srcDim[0] / 16.0, m_cuTreeStats.srcDim[1] / 16.0};
+    double dstdim[2] = {m_param->sourceWidth / 16.0,   m_param->sourceHeight/ 16.0};
+    int ncuScale = (m_param->rc.qgSize == 8) ? 2 : 1;
+    int srcdimi[2] = {(int)ceil(srcdim[0]) * ncuScale, (int)ceil(srcdim[1]) * ncuScale};
+    int dstdimi[2] = {(int)ceil(dstdim[0]) * ncuScale, (int)ceil(dstdim[1]) * ncuScale};
 
     m_cuTreeStats.srcCuCount = srcdimi[0] * srcdimi[1];
 
