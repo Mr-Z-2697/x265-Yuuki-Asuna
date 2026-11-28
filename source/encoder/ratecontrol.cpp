@@ -282,7 +282,7 @@ bool RateControl::readStatsZones(const char *options)
     return true;
 }
 
-double RateControl::applyZone(Frame* frame, double qScale)
+double RateControl::applyZone(Frame* frame, double qScale, RateControlEntry* rce)
 {
     if (frame->m_forceqp)
         return qScale;
@@ -2650,7 +2650,7 @@ double RateControl::rateEstimateQscale(Frame* curFrame, RateControlEntry *rce)
 
         x265_zone* zone = getZone(curFrame->m_sourcePoc);
         bool forceZoneQp = zone && zone->bForceQp && !curFrame->m_forceqp;
-        qScale = applyZone(curFrame, qScale);
+        qScale = applyZone(curFrame, qScale, rce);
         double zoneOffset = curFrame->m_encData->m_zoneQpOffset;
         if (zoneOffset)
             rce->qpNoVbv = x265_qScale2qp(qScale);
@@ -2737,7 +2737,7 @@ double RateControl::rateEstimateQscale(Frame* curFrame, RateControlEntry *rce)
             x265_zone* zone = getZone(curFrame->m_sourcePoc);
             bool forceZoneQp = zone && zone->bForceQp && !curFrame->m_forceqp;
             if (!forceZoneQp)
-                q = applyZone(curFrame, q);
+                q = applyZone(curFrame, q, rce);
             /*Existing ABR conformance check may not be valid with real time VBV*/
             if(!m_param->bliveVBV2pass)
                 q /= x265_clip3(0.5, 2.0, (double)(abrBuffer - diff) / abrBuffer);
@@ -2779,7 +2779,7 @@ double RateControl::rateEstimateQscale(Frame* curFrame, RateControlEntry *rce)
 
             if (forceZoneQp)
             {
-                q = applyZone(curFrame, q);
+                q = applyZone(curFrame, q, rce);
                 rce->qpNoVbv = x265_qScale2qp(q);
             }
 
@@ -2966,7 +2966,7 @@ double RateControl::rateEstimateQscale(Frame* curFrame, RateControlEntry *rce)
                 q = x265_clip3(qmin, qmax, q);
                 rce->qpNoVbv = x265_qScale2qp(q);
             }
-            q = applyZone(curFrame, q);
+            q = applyZone(curFrame, q, rce);
             double zoneOffset = curFrame->m_encData->m_zoneQpOffset;
             if (zoneOffset)
                 rce->qpNoVbv = x265_qScale2qp(q);

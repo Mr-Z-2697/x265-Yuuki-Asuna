@@ -339,7 +339,7 @@ protected:
     x265_zone* getZone(int frameNum);
     const x265_zone* getStatsZone(int frameNum) const;
     bool readStatsZones(const char *options);
-    double applyZone(Frame* frame, double qScale);
+    double applyZone(Frame* frame, double qScale, RateControlEntry *rce);
     double getZoneQpOffset(const Frame* frame, double qp) const;
     double getLastBaseQScale(int sliceType) const;
     double getQScale(RateControlEntry *rce, double rateFactor);
