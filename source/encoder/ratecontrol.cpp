@@ -288,10 +288,18 @@ double RateControl::applyZone(Frame* frame, double qScale)
         return qScale;
 
     x265_zone *zone = getZone(frame->m_sourcePoc);
-    if (!zone || (!zone->bForceQp && zone->bitrateFactor == 1))
+    if (!zone || (!zone->bForceQp && !zone->bForceCrf && zone->bitrateFactor == 1))
         return qScale;
 
-    double q = zone->bForceQp ? x265_qp2qScale(zone->qp) : qScale / zone->bitrateFactor;
+    double q = qScale;
+    if (zone->bForceCrf)
+    {
+        double baseCplx = m_ncu * (m_param->bframes ? 120 : 80);
+        double cuTreeOffset = m_param->rc.cuTree ? (1.0 - m_param->rc.qCompress) * 13.5 : 0;
+        q = getQScale(rce, pow(baseCplx, 1.0 - m_qCompress) / x265_qp2qScale(zone->rfConstant + cuTreeOffset));
+    }
+    else
+        q = zone->bForceQp ? x265_qp2qScale(zone->qp) : qScale / zone->bitrateFactor;
     q = x265_clip3(m_lmin[m_sliceType], m_lmax[m_sliceType], q);
     double baseQp = x265_clip3((double)m_param->rc.qpMin, (double)m_param->rc.qpMax, x265_qScale2qp(qScale));
     frame->m_encData->m_zoneBaseQp = baseQp;
