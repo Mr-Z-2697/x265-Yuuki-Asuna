@@ -41,6 +41,9 @@ class SEIBufferingPeriod;
 struct SPS;
 #define BASE_FRAME_DURATION 0.04
 
+/* exponential decay factor for moving frame rate estimate. */
+#define FPS_AVERAGING_WINDOW 0.5
+
 /* Arbitrary limitations as a sanity check. */
 #define MAX_FRAME_DURATION 1.00
 #define MIN_FRAME_DURATION 0.01
@@ -159,7 +162,7 @@ public:
     bool   m_initVbv;
     int    m_lastAbrResetPoc;
 
-    int    m_lastScenecut;
+    int64_t m_lastScenecut;           /* display tick of the last scenecut, -1 if none */
     int    m_lastScenecutAwareIFrame;
     double m_rateTolerance;
     double m_bitrate;
@@ -195,6 +198,7 @@ public:
     double  m_accumPQp;          /* for determining I-frame quant */
     double  m_accumPNorm;
     double  m_lastQScaleFor[3];  /* last qscale for a specific pict type, used for max_diff & ipb factor stuff */
+    double  m_lastZoneQpOffset[3];
     double  m_lstep;
     double  m_lmin[3];
     double  m_lmax[3];
@@ -208,7 +212,9 @@ public:
     double  m_movingSumComplexitySeg[3];
     int     m_frameCountSeg[3];
     double  m_segDur;
-    double  m_fps;              /* only a true framerate for CFR content */
+    /* track count of frames and their duration with exp decay to estimate local frame rate */
+    double  m_fpsTimeSum;
+    double  m_fpsFrameSum;
     double  m_timebase;
     int64_t m_satdCostWindow[50];
     int64_t m_encodedBitsWindow[50];
@@ -327,17 +333,26 @@ protected:
     int    m_residualCost;
     int    m_partialResidualCost;
 
+    x265_zone* m_statsZones;
+    int        m_statsZoneCount;
+
     x265_zone* getZone(int frameNum);
+    const x265_zone* getStatsZone(int frameNum) const;
+    bool readStatsZones(const char *options);
+    double applyZone(Frame* frame, double qScale);
+    double getZoneQpOffset(const Frame* frame, double qp) const;
+    double getLastBaseQScale(int sliceType) const;
     double getQScale(RateControlEntry *rce, double rateFactor);
     double rateEstimateQscale(Frame* pic, RateControlEntry *rce); // main logic for calculating QP based on ABR
     double tuneAbrQScaleFromFeedback(double qScale);
     double tuneQScaleForZone(RateControlEntry *rce, double qScale); // Tune qScale to adhere to zone budget
-    double tuneQscaleForSBRC(Frame* curFrame, double q); // Tune qScale to adhere to segment budget	
-    void   accumPQpUpdate();
+    double tuneQscaleForSBRC(Frame* curFrame, double q); // Tune qScale to adhere to segment budget
+    void   accumPQpUpdate(double qp);
 
     int    getPredictorType(int lowresSliceType, int sliceType);
     int    updateVbv(int64_t bits, RateControlEntry* rce);
     void   updatePredictor(Predictor *p, double q, double var, double bits);
+    double clipQscale2Pass(RateControlEntry* rce, double q);
     double clipQscale(Frame* pic, RateControlEntry* rce, double q);
     void   updateVbvPlan(Encoder* enc);
     double predictSize(Predictor *p, double q, double var);

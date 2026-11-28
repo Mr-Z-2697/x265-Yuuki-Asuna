@@ -192,7 +192,7 @@ public:
     void destroy();
 
     /* triggers encode of a new frame by the worker thread */
-    bool startCompressFrame(Frame* curFrame[MAX_LAYERS]);
+    bool startCompressFrame(Frame *curFrame[MAX_LAYERS], bool needReconOutput);
 
     /* blocks until worker thread is done, returns access unit */
     Frame **getEncodedPicture(NALList& list);
@@ -204,6 +204,7 @@ public:
     Event                    m_completionEvent;
     int                      m_localTldIdx;
     bool                     m_reconfigure; /* reconfigure in progress */
+    bool m_bNeedReconOutput;
     volatile bool            m_threadActive;
     volatile bool            *m_bAllRowsStop;
     volatile int             m_completionCount;
@@ -260,6 +261,7 @@ public:
     Frame**                  m_retFrameBuffer;
     NoiseReduction*          m_nr;
     ThreadLocalData*         m_tld; /* for --no-wpp */
+    PicYuv*                  m_mcstfCompensatedPics[MCSTF_MAX_REFS]; /* MCSTF motion-compensated references of the frame being filtered */
     Bitstream*               m_outStreams;
     Bitstream*               m_backupStreams;
     uint32_t*                m_substreamSizes;

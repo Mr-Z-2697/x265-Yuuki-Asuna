@@ -72,6 +72,7 @@ struct RcStats
     double   offset[4];
     double   bufferFillFinal;
     int64_t  currentSatd;
+    double   lastZoneQpOffset[3];
 };
 
 class Frame
@@ -85,8 +86,6 @@ public:
 
     /* Data associated with x265_picture */
     PicYuv*                m_fencPic;
-    PicYuv*                m_fencPicSubsampled2;
-    PicYuv*                m_fencPicSubsampled4;
 
     PicList                refPicSetInterLayer0;
     PicList                refPicSetInterLayer1;
@@ -201,7 +200,6 @@ public:
     Frame();
 
     bool create(x265_param *param, float* quantOffsets);
-    bool createSubSample();
     bool allocEncodeData(x265_param *param, const SPS& sps);
     void reinit(const SPS& sps);
     void destroy();

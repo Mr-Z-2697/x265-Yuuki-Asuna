@@ -57,6 +57,7 @@ static inline bool shouldRunMLPred(const Encoder* top, const Frame* frame)
 FrameEncoder::FrameEncoder()
 {
     m_reconfigure = false;
+    m_bNeedReconOutput = false;
     m_isFrameEncoder = true;
     m_threadActive = true;
     m_activeWorkerCount = 0;
@@ -72,6 +73,7 @@ FrameEncoder::FrameEncoder()
     m_cuGeoms = NULL;
     m_ctuGeomMap = NULL;
     m_localTldIdx = 0;
+    memset(m_mcstfCompensatedPics, 0, sizeof(m_mcstfCompensatedPics));
     memset(&m_rce, 0, sizeof(RateControlEntry));
     for (int layer = 0; layer < MAX_LAYERS; layer++)
     {
@@ -120,7 +122,17 @@ void FrameEncoder::destroy()
 
     m_frameFilter.destroy();
 
-    if (m_param->bEmitHRDSEI || !!m_param->interlaceMode)
+    for (int i = 0; i < MCSTF_MAX_REFS; i++)
+    {
+        if (m_mcstfCompensatedPics[i])
+        {
+            m_mcstfCompensatedPics[i]->destroy();
+            delete m_mcstfCompensatedPics[i];
+            m_mcstfCompensatedPics[i] = NULL;
+        }
+    }
+
+    if (m_param->bEmitHRDSEI || m_param->bEmitFrameFieldInfo)
     {
         delete m_rce.picTimingSEI;
     }
@@ -196,7 +208,7 @@ bool FrameEncoder::init(Encoder *top, int numRows, int numCols)
     m_frameFilter.init(top, this, numRows, numCols);
 
     // initialize HRD parameters of SPS
-    if (m_param->bEmitHRDSEI || !!m_param->interlaceMode)
+    if (m_param->bEmitHRDSEI || m_param->bEmitFrameFieldInfo)
     {
         m_rce.picTimingSEI = new SEIPictureTiming;
 
@@ -223,6 +235,16 @@ bool FrameEncoder::init(Encoder *top, int numRows, int numCols)
     for (int layer = 0; layer < m_param->numLayers; layer++)
         m_retFrameBuffer[layer] = NULL;
 
+    /* one set per frame encoder instead of one per Frame: they are only used while filtering */
+    if (m_param->bEnableTemporalFilter)
+    {
+        for (int i = 0; i < (m_param->mcstfFrameRange << 1); i++)
+        {
+            m_mcstfCompensatedPics[i] = new PicYuv;
+            ok &= m_mcstfCompensatedPics[i]->create(m_param, true);
+        }
+    }
+
 #ifdef ENABLE_MLCTUPRED
     if (m_param->bEnableMLCTUPred)
     {
@@ -232,7 +254,6 @@ bool FrameEncoder::init(Encoder *top, int numRows, int numCols)
         m_mlRequest.buffers = &m_mlBuffers;
     }
 #endif
-
     return ok;
 }
 
@@ -299,8 +320,9 @@ bool FrameEncoder::initializeGeoms()
     return true;
 }
 
-bool FrameEncoder::startCompressFrame(Frame* curFrame[MAX_LAYERS])
+bool FrameEncoder::startCompressFrame(Frame *curFrame[MAX_LAYERS], bool needReconOutput)
 {
+    m_bNeedReconOutput = needReconOutput;
     for (int layer = 0; layer < m_param->numLayers; layer++)
     {
         m_slicetypeWaitTime[layer] = x265_mdate() - m_prevOutputTime[layer];
@@ -692,6 +714,8 @@ void FrameEncoder::compressFrame(int layer)
 
         m_frame[layer]->m_encData->m_avgQpAq = m_frame[0]->m_encData->m_avgQpAq;
         m_frame[layer]->m_encData->m_avgQpRc = m_frame[0]->m_encData->m_avgQpRc;
+        m_frame[layer]->m_encData->m_zoneQpOffset = m_frame[0]->m_encData->m_zoneQpOffset;
+        m_frame[layer]->m_encData->m_zoneBaseQp = m_frame[0]->m_encData->m_zoneBaseQp;
         if (!!m_param->rc.hevcAq)
         {
             for (uint32_t d = 0; d < 4; d++)
@@ -729,10 +753,10 @@ void FrameEncoder::compressFrame(int layer)
             }
         }
     }
-    if (m_param->bEnableTemporalFilter && m_top->isFilterThisframe(m_frame[layer]->m_mcstf->m_sliceTypeConfig, m_frame[layer]->m_lowres.sliceType) && m_frame[layer]->m_lowres.filterThisGOP)
+    if (m_param->bEnableTemporalFilter && m_frame[layer]->m_lowres.bApplyFilter)
     {
         m_frame[layer]->m_mcstf->m_QP = qp;
-        m_frame[layer]->m_mcstf->bilateralFilter(m_frame[layer], m_frame[layer]->m_mcstfRefList, m_pool);
+        m_frame[layer]->m_mcstf->bilateralFilter(m_frame[layer], m_frame[layer]->m_mcstfRefList, m_mcstfCompensatedPics, m_pool);
     }
 
     if (m_nr)
@@ -864,11 +888,10 @@ void FrameEncoder::compressFrame(int layer)
         }
     }
 
-    if ((m_param->bEmitHRDSEI || !!m_param->interlaceMode))
+    if ((m_param->bEmitHRDSEI || m_param->bEmitFrameFieldInfo))
     {
         SEIPictureTiming *sei = m_rce.picTimingSEI;
         const VUI *vui = &slice->m_sps->vuiParameters;
-        const HRDInfo *hrd = &vui->hrdParameters;
 
         if (vui->frameFieldInfoPresentFlag)
         {
@@ -898,8 +921,10 @@ void FrameEncoder::compressFrame(int layer)
             sei->m_duplicateFlag = false;
         }
 
-        if (vui->hrdParametersPresentFlag)
+        if (slice->m_sps->bCpbDpbDelaysPresent)
         {
+            const HRDInfo *hrd = &vui->hrdParameters;
+
             /* The m_aucpbremoval delay specifies how many clock ticks the access unit
              * with the picture timing SEI message has to wait after removal of the
              * access unit with the most recent buffering period SEI message */
@@ -1191,20 +1216,13 @@ void FrameEncoder::compressFrame(int layer)
     if (m_param->bDynamicRefine && m_top->m_startPoint <= m_frame[layer]->m_encodeOrder) //Avoid collecting data that will not be used by future frames.
         collectDynDataFrame(layer);
 
-    if (m_param->bEnableTemporalFilter && m_top->isFilterThisframe(m_frame[layer]->m_mcstf->m_sliceTypeConfig, m_frame[layer]->m_lowres.sliceType))
+    if (m_param->bEnableTemporalFilter && (m_frame[layer]->m_lowres.bApplyFilter || m_frame[layer]->m_mcstf->m_numRef))
     {
         //Reset the MCSTF context in Frame Encoder and Frame
         for (int i = 0; i < (m_frame[layer]->m_mcstf->m_range << 1); i++)
-        {
-            memset(m_frame[layer]->m_mcstfRefList[i].mvs0, 0, sizeof(MV) * ((m_param->sourceWidth / 16) * (m_param->sourceHeight / 16)));
-            memset(m_frame[layer]->m_mcstfRefList[i].mvs1, 0, sizeof(MV) * ((m_param->sourceWidth / 16) * (m_param->sourceHeight / 16)));
-            memset(m_frame[layer]->m_mcstfRefList[i].mvs2, 0, sizeof(MV) * ((m_param->sourceWidth / 16) * (m_param->sourceHeight / 16)));
-            memset(m_frame[layer]->m_mcstfRefList[i].mvs,  0, sizeof(MV) * ((m_param->sourceWidth / 4) * (m_param->sourceHeight / 4)));
-            memset(m_frame[layer]->m_mcstfRefList[i].noise, 0, sizeof(int) * ((m_param->sourceWidth / 4) * (m_param->sourceHeight / 4)));
-            memset(m_frame[layer]->m_mcstfRefList[i].error, 0, sizeof(int) * ((m_param->sourceWidth / 4) * (m_param->sourceHeight / 4)));
-
-            m_frame[layer]->m_mcstf->m_numRef = 0;
-        }
+            m_frame[layer]->m_mcstf->resetRefPicInfo(&m_frame[layer]->m_mcstfRefList[i]);
+        /* always leave the Frame with no references: a stale count makes the next use of this Frame skip generatemcstf() */
+        m_frame[layer]->m_mcstf->m_numRef = 0;
     }
 
 
@@ -1861,7 +1879,7 @@ void FrameEncoder::processRowEncoder(int intRow, ThreadLocalData& tld, int layer
             m_frameFilter.m_parallelFilter[row].m_sao.calcSaoStatsCu_BeforeDblk(m_frame[layer], col, row);
 
         /* Deblock with idle threading */
-        if (m_param->bEnableLoopFilter | slice->m_bUseSao)
+        if ((int)m_frameFilter.m_bUseDeblock | slice->m_bUseSao)
         {
             // NOTE: in VBV mode, we may reencode anytime, so we can't do Deblock stage-Horizon and SAO
             if (!bIsVbv)
@@ -2179,7 +2197,7 @@ void FrameEncoder::processRowEncoder(int intRow, ThreadLocalData& tld, int layer
 
 
     /* Processing left Deblock block with current threading */
-    if ((m_param->bEnableLoopFilter | slice->m_bUseSao) & (rowInSlice >= 2))
+    if (((int)m_frameFilter.m_bUseDeblock | slice->m_bUseSao) & (rowInSlice >= 2))
     {
         /* Check conditional to start previous row process with current threading */
         if (m_frameFilter.m_parallelFilter[row - 2].m_lastDeblocked.get() == (int)numCols)
